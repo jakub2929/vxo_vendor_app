@@ -1,0 +1,8 @@
+RESOLVED VERSIONS
+expo: 55.0.23
+@supabase/supabase-js: 2.105.3
+@tanstack/react-query: 5.100.9
+zustand: 5.0.13
+react-hook-form: 7.75.0
+zod: 4.4.3
+@hookform/resolvers: 5.2.2
