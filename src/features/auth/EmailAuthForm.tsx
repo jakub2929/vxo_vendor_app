@@ -8,7 +8,6 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronDown } from 'lucide-react-native';
 import { Button, Checkbox, Header, TextInput, VXOWordmark } from '@/components';
 import { colors, spacing, typography } from '@/theme';
 
@@ -85,13 +84,6 @@ export function EmailAuthForm({
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
-            leftAdornment={
-              <View style={styles.flagAdornment}>
-                {/* Country flag is decorative — email-only auth per spec */}
-                <Text style={styles.flagEmoji} allowFontScaling={false}>🇺🇸</Text>
-                <ChevronDown size={16} color={colors.text.tertiary} />
-              </View>
-            }
           />
 
           <View style={styles.rememberRow}>
@@ -139,15 +131,6 @@ const styles = StyleSheet.create({
   inputStack: {
     width: '100%',
     gap: spacing.xl,
-  },
-  flagAdornment: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs + 2,
-  },
-  flagEmoji: {
-    fontSize: 18,
-    lineHeight: 22,
   },
   rememberRow: {
     flexDirection: 'row',
