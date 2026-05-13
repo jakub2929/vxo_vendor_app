@@ -11,7 +11,7 @@
 // TODO: when Alfred approves via Telegram, push notification triggers and routes
 // user to (tabs) home. Real-time subscription to vendors.status would also work.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -114,45 +114,70 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
     if (target === 'w9') setValue('w9Uri', fileName ?? uri);
   };
 
-  const handleDocument = async (target: UploadTarget) => {
-    const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
-    if (!res.canceled && res.assets[0]) {
-      const a = res.assets[0];
-      setForTarget(target, a.uri, a.name);
+  const pickerBusy = useRef(false);
+
+  // Wraps picker invocations with a JS-side lock (prevents double-tap from
+  // running two pickers in parallel — that's what produces the native
+  // "Different document picking in progress" error) and a try/catch so
+  // module errors surface as a soft alert instead of a Metro red screen.
+  const withPickerLock = async (fn: () => Promise<void>) => {
+    if (pickerBusy.current) return;
+    pickerBusy.current = true;
+    try {
+      await fn();
+    } catch (err) {
+      console.error('[picker]', err);
+      Alert.alert(
+        'Couldn\'t open the picker',
+        'Please try again in a moment.',
+      );
+    } finally {
+      pickerBusy.current = false;
     }
   };
 
-  const handleCamera = async (target: UploadTarget) => {
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        'Camera permission needed',
-        'Enable camera access in Settings to take a photo.',
-      );
-      return;
-    }
-    const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-    if (!res.canceled && res.assets[0]) {
-      const a = res.assets[0];
-      setForTarget(target, a.uri, a.fileName ?? 'photo.jpg');
-    }
-  };
+  const handleDocument = (target: UploadTarget) =>
+    withPickerLock(async () => {
+      const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+      if (!res.canceled && res.assets[0]) {
+        const a = res.assets[0];
+        setForTarget(target, a.uri, a.name);
+      }
+    });
 
-  const handleGallery = async (target: UploadTarget) => {
-    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) {
-      Alert.alert(
-        'Photo library permission needed',
-        'Enable photos access in Settings to pick an image.',
-      );
-      return;
-    }
-    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
-    if (!res.canceled && res.assets[0]) {
-      const a = res.assets[0];
-      setForTarget(target, a.uri, a.fileName ?? 'image.jpg');
-    }
-  };
+  const handleCamera = (target: UploadTarget) =>
+    withPickerLock(async () => {
+      const perm = await ImagePicker.requestCameraPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Camera permission needed',
+          'Enable camera access in Settings to take a photo.',
+        );
+        return;
+      }
+      const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+      if (!res.canceled && res.assets[0]) {
+        const a = res.assets[0];
+        setForTarget(target, a.uri, a.fileName ?? 'photo.jpg');
+      }
+    });
+
+  const handleGallery = (target: UploadTarget) =>
+    withPickerLock(async () => {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert(
+          'Photo library permission needed',
+          'Enable photos access in Settings to pick an image.',
+        );
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
+      if (!res.canceled && res.assets[0]) {
+        const a = res.assets[0];
+        setForTarget(target, a.uri, a.fileName ?? 'image.jpg');
+      }
+    });
 
   const handleAttachmentSelect = (source: AttachmentSource) => {
     const target = uploadTarget;

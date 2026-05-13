@@ -9,7 +9,7 @@
 // status mutation (Accept/Reject/Get Directions) AND the bubble that
 // accompanies it. Invoice / Quote / Questions are intentional TODOs:
 // they route into screens that don't exist yet.
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -62,6 +62,7 @@ export function JobChatScreen({ jobId }: Props) {
 
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
+  const pickerBusy = useRef(false);
 
   const timeline = useMemo<TimelineItem[]>(() => {
     if (!job) return [];
@@ -165,57 +166,72 @@ export function JobChatScreen({ jobId }: Props) {
         return;
       }
 
-      if (source === 'document') {
-        const res = await DocumentPicker.getDocumentAsync({
-          copyToCacheDirectory: true,
-        });
-        if (res.canceled || !res.assets[0]) return;
-        const a = res.assets[0];
-        appendMockAttachment(job.id, {
-          kind: 'document',
-          uri: a.uri,
-          filename: a.name,
-        });
-        return;
-      }
+      // JS-side lock: prevents a rapid double-tap from running two pickers
+      // in parallel, which is what produces the native "Different document
+      // picking in progress" error.
+      if (pickerBusy.current) return;
+      pickerBusy.current = true;
+      try {
+        if (source === 'document') {
+          const res = await DocumentPicker.getDocumentAsync({
+            copyToCacheDirectory: true,
+          });
+          if (res.canceled || !res.assets[0]) return;
+          const a = res.assets[0];
+          appendMockAttachment(job.id, {
+            kind: 'document',
+            uri: a.uri,
+            filename: a.name,
+          });
+          return;
+        }
 
-      if (source === 'camera') {
-        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (source === 'camera') {
+          const perm = await ImagePicker.requestCameraPermissionsAsync();
+          if (!perm.granted) {
+            Alert.alert(
+              'Camera permission needed',
+              'Enable camera access in Settings to take a photo.',
+            );
+            return;
+          }
+          const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+          if (res.canceled || !res.assets[0]) return;
+          const a = res.assets[0];
+          appendMockAttachment(job.id, {
+            kind: 'image',
+            uri: a.uri,
+            filename: a.fileName ?? 'photo.jpg',
+          });
+          return;
+        }
+
+        // gallery
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!perm.granted) {
           Alert.alert(
-            'Camera permission needed',
-            'Enable camera access in Settings to take a photo.',
+            'Photo library permission needed',
+            'Enable photos access in Settings to pick an image.',
           );
           return;
         }
-        const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+        const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
         if (res.canceled || !res.assets[0]) return;
         const a = res.assets[0];
         appendMockAttachment(job.id, {
           kind: 'image',
           uri: a.uri,
-          filename: a.fileName ?? 'photo.jpg',
+          filename: a.fileName ?? 'image.jpg',
         });
-        return;
-      }
-
-      // gallery
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
+      } catch (err) {
+        console.error('[picker]', err);
         Alert.alert(
-          'Photo library permission needed',
-          'Enable photos access in Settings to pick an image.',
+          'Couldn\'t open the picker',
+          'Please try again in a moment.',
         );
-        return;
+      } finally {
+        pickerBusy.current = false;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
-      if (res.canceled || !res.assets[0]) return;
-      const a = res.assets[0];
-      appendMockAttachment(job.id, {
-        kind: 'image',
-        uri: a.uri,
-        filename: a.fileName ?? 'image.jpg',
-      });
     },
     [job],
   );

@@ -5,16 +5,23 @@ import { colors } from '@/theme';
 type Props = {
   visible: boolean;
   onClose: () => void;
+  // iOS-only: fires after the slide-down animation completes. Use when the
+  // next action (e.g. presenting a native picker) requires the host view
+  // controller to be settled. Android: Modal dismiss is effectively instant
+  // and onDismiss isn't invoked; callers needing parity detect close
+  // themselves (useEffect on `visible` going false).
+  onDismissed?: () => void;
   children: ReactNode;
 };
 
-export function BottomSheet({ visible, onClose, children }: Props) {
+export function BottomSheet({ visible, onClose, onDismissed, children }: Props) {
   return (
     <Modal
       visible={visible}
       transparent
       animationType="slide"
       onRequestClose={onClose}
+      onDismiss={onDismissed}
       presentationStyle="overFullScreen"
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
