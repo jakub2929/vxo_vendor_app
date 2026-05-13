@@ -4,15 +4,17 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { HomeTab } from '@/features/home/HomeTab';
+import { useVendor } from '@/hooks/useVendor';
 import { colors, shadows } from '@/theme';
 import { ChatsHeader } from './ChatsHeader';
 import { ChatsTabStrip, type ChatsTab } from './ChatsTabStrip';
 import { MoreMenu } from './MoreMenu';
 
-// 1:1 implementation of Figma node 4:10155 (the "Jobs" tab empty / welcome
-// state). The Home tab content is not specified by this Figma frame — left
-// intentionally blank pending a dedicated design.
+// "Jobs" tab body is the welcome state from Figma node 4:10155.
+// "Home" tab body is Figma frame 4:9982 — see src/features/home/.
 export function ChatsScreen() {
+  const { vendor } = useVendor();
   const [activeTab, setActiveTab] = useState<ChatsTab>('chats');
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -42,7 +44,7 @@ export function ChatsScreen() {
           onMorePress={() => setMenuVisible(true)}
           tabs={<ChatsTabStrip active={activeTab} onChange={setActiveTab} />}
         />
-        {activeTab === 'chats' ? <JobsWelcome /> : <View style={styles.flex} />}
+        {activeTab === 'chats' ? <JobsWelcome /> : <HomeTab vendorId={vendor?.id} />}
         <MoreMenu
           visible={menuVisible}
           onClose={() => setMenuVisible(false)}
@@ -82,7 +84,6 @@ function JobsWelcome() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.surface.base },
   container: { flex: 1, backgroundColor: colors.surface.base },
-  flex: { flex: 1 },
   bodyContainer: {
     flex: 1,
     alignItems: 'center',

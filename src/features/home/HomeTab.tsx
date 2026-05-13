@@ -1,0 +1,196 @@
+import { useCallback, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { colors } from '@/theme';
+import { HomeJobRow } from './HomeJobRow';
+import { HomePromoCard } from './HomePromoCard';
+import { HomeSummary } from './HomeSummary';
+import {
+  useHomeRecentJobs,
+  useHomeStats,
+  useHomeSummary,
+} from './useHomeData';
+import { useHomeRealtime } from './useHomeRealtime';
+
+type Props = {
+  vendorId: string | null | undefined;
+};
+
+export function HomeTab({ vendorId }: Props) {
+  const qc = useQueryClient();
+  const summary = useHomeSummary(vendorId);
+  const stats = useHomeStats(vendorId);
+  const recent = useHomeRecentJobs(vendorId);
+  useHomeRealtime(vendorId);
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await qc.invalidateQueries({ queryKey: ['home'] });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [qc]);
+
+  const isLoading =
+    summary.isLoading || stats.isLoading || recent.isLoading;
+  // Empty iff there are no recent jobs. A vendor with sent-but-unpaid invoices
+  // necessarily has jobs (FK), so they'll show up in `recent` and won't trip
+  // this — gating on `earnedThisMonth === 0` would have falsely flagged them.
+  const isEmpty = !isLoading && (recent.data?.length ?? 0) === 0;
+
+  return (
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      <View style={styles.summaryWrap}>
+        <HomeSummary
+          earnedThisMonth={summary.data?.earnedThisMonth ?? 0}
+          jobsCount={summary.data?.jobsCount ?? 0}
+          invoicesSent={stats.data?.invoicesSent ?? 0}
+          invoicesPaid={stats.data?.invoicesPaid ?? 0}
+        />
+      </View>
+
+      <View style={styles.list}>
+        {isLoading ? (
+          <>
+            <SkeletonRow />
+            <SkeletonRow />
+            <SkeletonRow />
+          </>
+        ) : isEmpty ? (
+          <EmptyHome />
+        ) : (
+          recent.data?.map((job) => (
+            <HomeJobRow key={job.jobId} job={job} />
+          ))
+        )}
+      </View>
+
+      <View style={styles.promoWrap}>
+        <HomePromoCard
+          onPress={() => {
+            // TODO: route to VXO Opportunities — no destination in Figma yet.
+          }}
+        />
+      </View>
+    </ScrollView>
+  );
+}
+
+function SkeletonRow() {
+  return (
+    <View style={skeletonStyles.card}>
+      <View style={skeletonStyles.avatar} />
+      <View style={skeletonStyles.content}>
+        <View style={skeletonStyles.titleBar} />
+        <View style={skeletonStyles.progressBar} />
+      </View>
+    </View>
+  );
+}
+
+function EmptyHome() {
+  return (
+    <View style={emptyStyles.container}>
+      <Text style={emptyStyles.title}>No jobs yet 👋</Text>
+      <Text style={emptyStyles.body}>
+        Your earnings and recent jobs will show up here once your first
+        dispatch comes in.
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  scroll: {
+    flex: 1,
+    backgroundColor: colors.surface.base,
+  },
+  content: {
+    paddingTop: 24,
+    paddingBottom: 36,
+    paddingHorizontal: 24,
+    gap: 24,
+  },
+  summaryWrap: {
+    width: '100%',
+  },
+  list: {
+    width: '100%',
+    gap: 16,
+  },
+  promoWrap: {
+    marginTop: 8,
+  },
+});
+
+const skeletonStyles = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    padding: 16,
+    backgroundColor: colors.surface.base,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.surface.base,
+  },
+  avatar: {
+    // Match real avatar outer size (HomeJobRow) so skeleton → data doesn't snap.
+    width: 75,
+    height: 75,
+    borderRadius: 1000,
+    backgroundColor: colors.divider.soft,
+  },
+  content: {
+    flex: 1,
+    gap: 8,
+  },
+  titleBar: {
+    height: 18,
+    borderRadius: 4,
+    backgroundColor: colors.divider.soft,
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 1000,
+    backgroundColor: colors.divider.soft,
+  },
+});
+
+const emptyStyles = StyleSheet.create({
+  container: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    gap: 12,
+  },
+  title: {
+    fontFamily: 'Urbanist-Bold',
+    fontWeight: '700',
+    fontSize: 20,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  body: {
+    fontFamily: 'Urbanist-Regular',
+    fontWeight: '400',
+    fontSize: 14,
+    lineHeight: 22.4,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    paddingHorizontal: 16,
+  },
+});
