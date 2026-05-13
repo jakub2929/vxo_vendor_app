@@ -70,8 +70,17 @@ type Props = {
 export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }: Props) {
   const [submitted, setSubmitted] = useState(initiallySubmitted);
   const [submitting, setSubmitting] = useState(false);
+  // uploadTarget tracks which slot the picker result will fill; sheetVisible
+  // is independent so closing the sheet doesn't drop the target before the
+  // picker callback fires.
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
+  const [sheetVisible, setSheetVisible] = useState(false);
   const [tradePickerOpen, setTradePickerOpen] = useState(false);
+
+  const openSheetFor = (target: UploadTarget) => {
+    setUploadTarget(target);
+    setSheetVisible(true);
+  };
 
   const {
     control,
@@ -99,24 +108,21 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
   const w9Uri = watch('w9Uri');
   const trades = watch('trades');
 
-  const setForTarget = (uri: string, fileName?: string) => {
-    if (!uploadTarget) return;
-    if (uploadTarget === 'avatar') setValue('avatarUri', uri);
-    if (uploadTarget === 'coi') setValue('coiUri', fileName ?? uri);
-    if (uploadTarget === 'w9') setValue('w9Uri', fileName ?? uri);
+  const setForTarget = (target: UploadTarget, uri: string, fileName?: string) => {
+    if (target === 'avatar') setValue('avatarUri', uri);
+    if (target === 'coi') setValue('coiUri', fileName ?? uri);
+    if (target === 'w9') setValue('w9Uri', fileName ?? uri);
   };
 
-  const handleDocument = async () => {
-    setUploadTarget(null);
+  const handleDocument = async (target: UploadTarget) => {
     const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
     if (!res.canceled && res.assets[0]) {
       const a = res.assets[0];
-      setForTarget(a.uri, a.name);
+      setForTarget(target, a.uri, a.name);
     }
   };
 
-  const handleCamera = async () => {
-    setUploadTarget(null);
+  const handleCamera = async (target: UploadTarget) => {
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -128,12 +134,11 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
     const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
     if (!res.canceled && res.assets[0]) {
       const a = res.assets[0];
-      setForTarget(a.uri, a.fileName ?? 'photo.jpg');
+      setForTarget(target, a.uri, a.fileName ?? 'photo.jpg');
     }
   };
 
-  const handleGallery = async () => {
-    setUploadTarget(null);
+  const handleGallery = async (target: UploadTarget) => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
       Alert.alert(
@@ -145,14 +150,16 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
     if (!res.canceled && res.assets[0]) {
       const a = res.assets[0];
-      setForTarget(a.uri, a.fileName ?? 'image.jpg');
+      setForTarget(target, a.uri, a.fileName ?? 'image.jpg');
     }
   };
 
   const handleAttachmentSelect = (source: AttachmentSource) => {
-    if (source === 'document') void handleDocument();
-    else if (source === 'camera') void handleCamera();
-    else void handleGallery();
+    const target = uploadTarget;
+    if (!target) return;
+    if (source === 'document') void handleDocument(target);
+    else if (source === 'camera') void handleCamera(target);
+    else void handleGallery(target);
   };
 
   const onSubmit = async (values: FormValues) => {
@@ -221,7 +228,7 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
         </View>
 
         <View style={styles.avatarBlock}>
-          <AvatarPicker uri={avatarUri} onPress={() => setUploadTarget('avatar')} />
+          <AvatarPicker uri={avatarUri} onPress={() => openSheetFor('avatar')} />
         </View>
 
         <View style={styles.fields}>
@@ -310,13 +317,13 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
           <UploadField
             label="Upload COI for Larger Jobs :  (Optional)"
             fileName={coiUri}
-            onPress={() => setUploadTarget('coi')}
+            onPress={() => openSheetFor('coi')}
           />
 
           <UploadField
             label="Upload W-9 to Verify Account : Optional"
             fileName={w9Uri}
-            onPress={() => setUploadTarget('w9')}
+            onPress={() => openSheetFor('w9')}
           />
         </View>
 
@@ -330,8 +337,8 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       </ScrollView>
 
       <AttachmentBottomSheet
-        visible={uploadTarget !== null}
-        onClose={() => setUploadTarget(null)}
+        visible={sheetVisible}
+        onClose={() => setSheetVisible(false)}
         onSelect={handleAttachmentSelect}
       />
 

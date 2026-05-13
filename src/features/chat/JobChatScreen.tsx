@@ -147,7 +147,9 @@ export function JobChatScreen({ jobId }: Props) {
 
   const handleAttachmentSelect = useCallback(
     async (source: AttachmentSource) => {
-      setAttachmentSheetOpen(false);
+      // Sheet close is handled by AttachmentBottomSheet itself; by the time
+      // this fires the modal has already finished its dismiss animation so
+      // camera / document pickers can present cleanly.
       if (!job) return;
 
       // Real path: needs Supabase Storage upload. Keep the picker out of
