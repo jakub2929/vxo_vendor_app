@@ -6,7 +6,7 @@ export const colors = {
     dark: '#003290',
     primaryGlow: '#246bfd40',
     surfaceTint: '#e9f0ff',
-    headerGradient: ['#246bfd', '#3062c8'] as const,
+    headerGradient: ['#246BFD', '#5089FF'] as const,
   },
   accent: {
     orange: '#ff981f',

@@ -15,7 +15,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Chats',
+          title: 'Jobs',
+          // TODO: Designer's icon for Jobs tab is unclear from Figma; using
+          // MessageCircle. Check with Ryan if a briefcase/wrench icon is
+          // preferred.
           tabBarIcon: ({ color, size }) => <MessageCircle color={color} size={size} />,
         }}
       />
@@ -31,6 +34,12 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
+        name="support"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

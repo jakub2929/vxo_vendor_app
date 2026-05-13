@@ -6,9 +6,10 @@ type Props = {
   icon: ReactNode;
   label: string;
   onPress: () => void;
+  labelColor?: string;
 };
 
-export function MoreMenuItem({ icon, label, onPress }: Props) {
+export function MoreMenuItem({ icon, label, onPress, labelColor }: Props) {
   return (
     <Pressable
       onPress={onPress}
@@ -17,7 +18,9 @@ export function MoreMenuItem({ icon, label, onPress }: Props) {
       accessibilityLabel={label}
     >
       <View style={styles.iconBox}>{icon}</View>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, labelColor !== undefined && { color: labelColor }]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }

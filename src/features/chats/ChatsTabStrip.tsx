@@ -1,29 +1,25 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/theme';
 
 export type ChatsTab = 'chats' | 'status';
 
 type Props = {
   active: ChatsTab;
-  chatsCount: number;
   onChange: (tab: ChatsTab) => void;
 };
 
-// Tabs sit inside the blue gradient ChatsHeader — see Figma node
-// I4:10141;1130:20166. Active = white text + white circle badge with blue
-// number inside; inactive = greyscale 300 (#E0E0E0). Underline is a full-width
-// white bar 4pt tall.
-export function ChatsTabStrip({ active, chatsCount, onChange }: Props) {
+// Tab strip sits inside the blue gradient header. Per Figma node
+// I4:10157;1130:20166 — "Jobs" (active: white text + 4pt white underline)
+// and "Home" (inactive: #E0E0E0 text, no underline). No badge on this frame.
+export function ChatsTabStrip({ active, onChange }: Props) {
   return (
     <View style={styles.container}>
       <TabButton
-        label="Chats"
-        badgeCount={chatsCount}
+        label="Jobs"
         isActive={active === 'chats'}
         onPress={() => onChange('chats')}
       />
       <TabButton
-        label="Status"
+        label="Home"
         isActive={active === 'status'}
         onPress={() => onChange('status')}
       />
@@ -33,12 +29,10 @@ export function ChatsTabStrip({ active, chatsCount, onChange }: Props) {
 
 function TabButton({
   label,
-  badgeCount,
   isActive,
   onPress,
 }: {
   label: string;
-  badgeCount?: number;
   isActive: boolean;
   onPress: () => void;
 }) {
@@ -48,20 +42,11 @@ function TabButton({
       style={styles.tab}
       accessibilityRole="tab"
       accessibilityState={{ selected: isActive }}
-      accessibilityLabel={
-        badgeCount !== undefined ? `${label}, ${badgeCount} new` : label
-      }
+      accessibilityLabel={label}
     >
-      <View style={styles.labelRow}>
-        <Text style={[styles.label, isActive ? styles.labelActive : styles.labelInactive]}>
-          {label}
-        </Text>
-        {badgeCount !== undefined && badgeCount > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{badgeCount > 99 ? '99+' : badgeCount}</Text>
-          </View>
-        )}
-      </View>
+      <Text style={[styles.label, isActive ? styles.labelActive : styles.labelInactive]}>
+        {label}
+      </Text>
       <View style={[styles.underline, isActive && styles.underlineActive]} />
     </Pressable>
   );
@@ -77,44 +62,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-  },
   label: {
     fontFamily: 'Urbanist-SemiBold',
     fontWeight: '600',
     fontSize: 18,
+    lineHeight: 25.2,
     letterSpacing: 0.2,
+    textAlign: 'center',
   },
   labelActive: {
-    color: '#ffffff',
+    color: '#FFFFFF',
   },
   labelInactive: {
     color: '#E0E0E0',
   },
-  badge: {
-    minWidth: 20,
-    height: 20,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: {
-    color: colors.brand.primary,
-    fontFamily: 'Urbanist-SemiBold',
-    fontWeight: '600',
-    fontSize: 11,
-    lineHeight: 13,
-  },
   underline: {
     height: 4,
     width: '100%',
-    borderRadius: 2,
+    borderRadius: 100,
     backgroundColor: 'transparent',
   },
   underlineActive: {

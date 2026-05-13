@@ -1,6 +1,7 @@
-import { Settings, User, Users } from 'lucide-react-native';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { LogOut, Settings, User, Users } from 'lucide-react-native';
+import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { signOut } from '@/lib/auth';
 import { colors, shadows } from '@/theme';
 import { MoreMenuItem } from './MoreMenuItem';
 import { StripeIcon } from './StripeIcon';
@@ -36,6 +37,29 @@ export function MoreMenu({
   const handle = (cb: () => void) => () => {
     onClose();
     cb();
+  };
+
+  // Logout is handled inside MoreMenu rather than via prop drilling — it's a
+  // global action (vendor cache + supabase session), not screen-specific.
+  // AuthGate (app/_layout.tsx) detects the session change via
+  // onAuthStateChange and redirects to /(public)/welcome automatically.
+  const handleLogoutPress = () => {
+    Alert.alert(
+      'Sign out?',
+      'You will need to log in again to access your jobs.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            onClose();
+            const { error } = await signOut();
+            if (error) console.warn('[MoreMenu] signOut error', error);
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -82,6 +106,13 @@ export function MoreMenu({
             icon={<Settings size={20} color={colors.text.primary} />}
             label="Settings"
             onPress={handle(onSelectSettings)}
+          />
+          <View style={styles.divider} />
+          <MoreMenuItem
+            icon={<LogOut size={20} color={colors.status.danger} />}
+            label="Logout"
+            labelColor={colors.status.danger}
+            onPress={handleLogoutPress}
           />
         </View>
       </View>
