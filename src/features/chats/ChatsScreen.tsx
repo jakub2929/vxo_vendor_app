@@ -9,14 +9,23 @@ import { useVendor } from '@/hooks/useVendor';
 import { colors, shadows } from '@/theme';
 import { ChatsHeader } from './ChatsHeader';
 import { ChatsTabStrip, type ChatsTab } from './ChatsTabStrip';
+import { JobsListBody } from './JobsListBody';
 import { MoreMenu } from './MoreMenu';
+import { useJobsList } from './useJobsList';
 
-// "Jobs" tab body is the welcome state from Figma node 4:10155.
+// "Jobs" tab body has two states:
+//   - empty: the welcome copy from Figma node 4:10155 (JobsWelcome below)
+//   - populated: list of active jobs (Figma node 4:10164, the colliding
+//     "17_FIrst Time Login" twin — see src/features/chats/JobRow.tsx)
+// JobsListBody handles loading + empty/populated branching.
 // "Home" tab body is Figma frame 4:9982 — see src/features/home/.
 export function ChatsScreen() {
   const { vendor } = useVendor();
   const [activeTab, setActiveTab] = useState<ChatsTab>('chats');
   const [menuVisible, setMenuVisible] = useState(false);
+  // Tab strip count badge — uses the same query result that powers the list,
+  // so the cache is shared and the number updates with Realtime invalidations.
+  const { data: jobsForCount } = useJobsList(vendor?.id);
 
   const handleContactVXO = () => {
     router.push('/(tabs)/support');
@@ -42,9 +51,32 @@ export function ChatsScreen() {
         <ChatsHeader
           onSearchPress={() => console.log('[ChatsScreen] search pressed')}
           onMorePress={() => setMenuVisible(true)}
-          tabs={<ChatsTabStrip active={activeTab} onChange={setActiveTab} />}
+          tabs={
+            <ChatsTabStrip
+              active={activeTab}
+              onChange={setActiveTab}
+              jobsCount={jobsForCount?.length ?? 0}
+            />
+          }
         />
-        {activeTab === 'chats' ? <JobsWelcome /> : <HomeTab vendorId={vendor?.id} />}
+        {activeTab === 'chats' ? (
+          <JobsListBody
+            vendorId={vendor?.id}
+            emptyState={<JobsWelcome />}
+            onRowPress={(_jobId) => {
+              // TODO: route to Job Chat detail (#20) once the screen exists.
+              // For now tapping a row is intentionally a no-op so the build
+              // doesn't break.
+            }}
+            onFabPress={() => {
+              // TODO: FAB destination — Figma shows a chat icon but no
+              // prototype link. Likely "compose support message" or
+              // "active conversations" once that flow is wired.
+            }}
+          />
+        ) : (
+          <HomeTab vendorId={vendor?.id} />
+        )}
         <MoreMenu
           visible={menuVisible}
           onClose={() => setMenuVisible(false)}

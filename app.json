@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "VXO uses your location to show how far away each work order is, so you can pick the closest job first."
+      }
     },
     "android": {
       "adaptiveIcon": {
