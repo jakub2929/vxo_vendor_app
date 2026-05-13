@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import {
   RefreshControl,
   ScrollView,
@@ -24,6 +25,7 @@ type Props = {
 
 export function HomeTab({ vendorId }: Props) {
   const qc = useQueryClient();
+  const router = useRouter();
   const summary = useHomeSummary(vendorId);
   const stats = useHomeStats(vendorId);
   const recent = useHomeRecentJobs(vendorId);
@@ -80,11 +82,7 @@ export function HomeTab({ vendorId }: Props) {
       </View>
 
       <View style={styles.promoWrap}>
-        <HomePromoCard
-          onPress={() => {
-            // TODO: route to VXO Opportunities — no destination in Figma yet.
-          }}
-        />
+        <HomePromoCard onPress={() => router.push('/learn-more')} />
       </View>
     </ScrollView>
   );

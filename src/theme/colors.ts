@@ -31,6 +31,10 @@ export const colors = {
     secondary: '#757575',
     tertiary: '#9e9e9e',
     placeholder: '#bdbdbd',
+    // Greyscale 700 — body copy on muted card surfaces. Used by Learn More
+    // info cards and JobRow subtitle/timestamp (those still inline the hex;
+    // refactor in a separate sweep).
+    bodyAlt: '#616161',
   },
   surface: {
     base: '#ffffff',
