@@ -63,10 +63,8 @@ export function ChatsScreen() {
           <JobsListBody
             vendorId={vendor?.id}
             emptyState={<JobsWelcome />}
-            onRowPress={(_jobId) => {
-              // TODO: route to Job Chat detail (#20) once the screen exists.
-              // For now tapping a row is intentionally a no-op so the build
-              // doesn't break.
+            onRowPress={(jobId) => {
+              router.push(`/job/${jobId}`);
             }}
             onFabPress={() => {
               // TODO: FAB destination — Figma shows a chat icon but no

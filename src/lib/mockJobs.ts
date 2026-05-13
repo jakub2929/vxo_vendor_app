@@ -144,7 +144,9 @@ export const mockJobs: Job[] = [
     client_email: 'dpark@example.com',
     assigned_vendor_id: MOCK_VENDOR_ID,
     pm_id: null,
-    checkin_time: '2026-05-05T09:30:00Z',
+    // checkin/checkout 35 minutes apart so buildTimeline renders the exact
+    // "On site 35 minutes" marker from Figma 4:10457.
+    checkin_time: '2026-05-05T10:25:00Z',
     checkout_time: '2026-05-05T11:00:00Z',
     eta_label: 'Invoice sent',
     eta_datetime: '2026-05-05T09:30:00Z',

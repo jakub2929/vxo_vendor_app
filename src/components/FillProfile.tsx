@@ -25,11 +25,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Calendar, CheckCircle2, ChevronLeft, Mail } from 'lucide-react-native';
 import { z } from 'zod';
-import { BottomSheet } from '@/components/BottomSheet';
-import { UploadActionChip } from '@/components/UploadActionChip';
+import {
+  AttachmentBottomSheet,
+  type AttachmentSource,
+} from '@/components/AttachmentBottomSheet';
 import { AvatarPicker } from '@/features/profile/AvatarPicker';
 import {
   type Trade,
@@ -40,7 +43,6 @@ import { UploadField } from '@/features/profile/UploadField';
 import { supabase } from '@/lib/supabase';
 import { clearVendorCache } from '@/lib/vendorCache';
 import { colors, radius, spacing, typography } from '@/theme';
-import { File as FileIcon, Camera, Image as ImageIcon } from 'lucide-react-native';
 
 type UploadTarget = 'avatar' | 'coi' | 'w9';
 
@@ -104,19 +106,23 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
     if (uploadTarget === 'w9') setValue('w9Uri', fileName ?? uri);
   };
 
-  const handleDocument = () => {
-    Alert.alert(
-      'Document picker',
-      'expo-document-picker is not installed — TODO. Use Camera or Gallery for now.',
-    );
+  const handleDocument = async () => {
     setUploadTarget(null);
+    const res = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+    if (!res.canceled && res.assets[0]) {
+      const a = res.assets[0];
+      setForTarget(a.uri, a.name);
+    }
   };
 
   const handleCamera = async () => {
+    setUploadTarget(null);
     const perm = await ImagePicker.requestCameraPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Camera permission required');
-      setUploadTarget(null);
+      Alert.alert(
+        'Camera permission needed',
+        'Enable camera access in Settings to take a photo.',
+      );
       return;
     }
     const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
@@ -124,14 +130,16 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       const a = res.assets[0];
       setForTarget(a.uri, a.fileName ?? 'photo.jpg');
     }
-    setUploadTarget(null);
   };
 
   const handleGallery = async () => {
+    setUploadTarget(null);
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) {
-      Alert.alert('Photo library permission required');
-      setUploadTarget(null);
+      Alert.alert(
+        'Photo library permission needed',
+        'Enable photos access in Settings to pick an image.',
+      );
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
@@ -139,7 +147,12 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       const a = res.assets[0];
       setForTarget(a.uri, a.fileName ?? 'image.jpg');
     }
-    setUploadTarget(null);
+  };
+
+  const handleAttachmentSelect = (source: AttachmentSource) => {
+    if (source === 'document') void handleDocument();
+    else if (source === 'camera') void handleCamera();
+    else void handleGallery();
   };
 
   const onSubmit = async (values: FormValues) => {
@@ -316,28 +329,11 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
         </Pressable>
       </ScrollView>
 
-      <BottomSheet visible={uploadTarget !== null} onClose={() => setUploadTarget(null)}>
-        <View style={styles.chipRow}>
-          <UploadActionChip
-            label="Document"
-            color={colors.accent.orange}
-            Icon={FileIcon}
-            onPress={handleDocument}
-          />
-          <UploadActionChip
-            label="Camera"
-            color={colors.accent.teal}
-            Icon={Camera}
-            onPress={handleCamera}
-          />
-          <UploadActionChip
-            label="Gallery"
-            color={colors.accent.purple}
-            Icon={ImageIcon}
-            onPress={handleGallery}
-          />
-        </View>
-      </BottomSheet>
+      <AttachmentBottomSheet
+        visible={uploadTarget !== null}
+        onClose={() => setUploadTarget(null)}
+        onSelect={handleAttachmentSelect}
+      />
 
       <TradeServicesPicker
         visible={tradePickerOpen}

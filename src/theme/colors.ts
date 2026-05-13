@@ -17,6 +17,10 @@ export const colors = {
   status: {
     success: '#4aaf57',
     successAlt: '#34a853',
+    // Chat-screen Accept CTA (Figma node 4:10119). Lighter and more saturated
+    // than status.success; the Accept button needs to read as a friendly
+    // action card, not a status badge — those are different visual roles.
+    acceptGreen: '#89d96e',
     danger: '#e31d1c',
     dangerAlt: '#ff0000',
     warning: '#fbbc05',
