@@ -1,0 +1,477 @@
+// TODO: Fields per Ryan's spec but not in Figma — collect in Profile tab later:
+//   - address (TEXT)
+//   - phone (TEXT, mandatory for PM contact)
+//   - trip_charge / dispatch_fee (NUMERIC)
+//   - radius_miles (NUMERIC)
+// vendors table has columns for these; just not in this screen's design.
+//
+// TODO: upload files to Supabase Storage bucket 'job-photos' on submit, store
+// URIs in vendors row. For now AvatarPicker / UploadField store local URIs only.
+//
+// TODO: when Alfred approves via Telegram, push notification triggers and routes
+// user to (tabs) home. Real-time subscription to vendors.status would also work.
+
+import { useEffect, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Calendar, CheckCircle2, ChevronLeft, Mail } from 'lucide-react-native';
+import { z } from 'zod';
+import { BottomSheet } from '@/components/BottomSheet';
+import { UploadActionChip } from '@/components/UploadActionChip';
+import { AvatarPicker } from '@/features/profile/AvatarPicker';
+import {
+  type Trade,
+  TradeServicesPicker,
+  tradesToLabel,
+} from '@/features/profile/TradeServicesPicker';
+import { UploadField } from '@/features/profile/UploadField';
+import { supabase } from '@/lib/supabase';
+import { clearVendorCache } from '@/lib/vendorCache';
+import { colors, radius, spacing, typography } from '@/theme';
+import { File as FileIcon, Camera, Image as ImageIcon } from 'lucide-react-native';
+
+type UploadTarget = 'avatar' | 'coi' | 'w9';
+
+const schema = z.object({
+  fullName: z.string().min(2, 'Required'),
+  businessName: z.string().min(2, 'Required'),
+  trades: z
+    .array(z.enum(['hvac', 'plumbing', 'handyman', 'electrical']))
+    .min(1, 'Select at least one'),
+  email: z.string().email(),
+  about: z.string().optional(),
+  avatarUri: z.string().optional(),
+  coiUri: z.string().optional(),
+  w9Uri: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof schema>;
+
+type Props = {
+  initialEmail?: string;
+  initiallySubmitted?: boolean;
+  onBack?: () => void;
+};
+
+export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }: Props) {
+  const [submitted, setSubmitted] = useState(initiallySubmitted);
+  const [submitting, setSubmitting] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
+  const [tradePickerOpen, setTradePickerOpen] = useState(false);
+
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      fullName: '',
+      businessName: '',
+      trades: [],
+      email: initialEmail ?? '',
+      about: '',
+    },
+  });
+
+  useEffect(() => {
+    if (initialEmail) setValue('email', initialEmail);
+  }, [initialEmail, setValue]);
+
+  const avatarUri = watch('avatarUri');
+  const coiUri = watch('coiUri');
+  const w9Uri = watch('w9Uri');
+  const trades = watch('trades');
+
+  const setForTarget = (uri: string, fileName?: string) => {
+    if (!uploadTarget) return;
+    if (uploadTarget === 'avatar') setValue('avatarUri', uri);
+    if (uploadTarget === 'coi') setValue('coiUri', fileName ?? uri);
+    if (uploadTarget === 'w9') setValue('w9Uri', fileName ?? uri);
+  };
+
+  const handleDocument = () => {
+    Alert.alert(
+      'Document picker',
+      'expo-document-picker is not installed — TODO. Use Camera or Gallery for now.',
+    );
+    setUploadTarget(null);
+  };
+
+  const handleCamera = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Camera permission required');
+      setUploadTarget(null);
+      return;
+    }
+    const res = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+    if (!res.canceled && res.assets[0]) {
+      const a = res.assets[0];
+      setForTarget(a.uri, a.fileName ?? 'photo.jpg');
+    }
+    setUploadTarget(null);
+  };
+
+  const handleGallery = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Photo library permission required');
+      setUploadTarget(null);
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ quality: 0.8 });
+    if (!res.canceled && res.assets[0]) {
+      const a = res.assets[0];
+      setForTarget(a.uri, a.fileName ?? 'image.jpg');
+    }
+    setUploadTarget(null);
+  };
+
+  const onSubmit = async (values: FormValues) => {
+    setSubmitting(true);
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const userEmail = userRes.user?.email ?? values.email;
+
+      const { error } = await supabase
+        .from('vendors')
+        .upsert(
+          {
+            email: userEmail,
+            name: values.fullName,
+            business: values.businessName,
+            trades: values.trades,
+            bio: values.about ?? null,
+            status: 'pending',
+          },
+          { onConflict: 'email' },
+        )
+        .select()
+        .single();
+
+      if (error) throw new Error(error.message);
+
+      clearVendorCache();
+      setSubmitted(true);
+    } catch (err) {
+      Alert.alert('Submission failed', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <View style={styles.successWrap}>
+        <CheckCircle2 size={120} color={colors.brand.primary} strokeWidth={1.5} />
+        <Text style={styles.successTitle}>Application Submitted</Text>
+        <Text style={styles.successBody}>
+          Your profile is being reviewed. We&apos;ll notify you when you&apos;re approved and can
+          start receiving jobs.
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.header}>
+          {onBack ? (
+            <Pressable onPress={onBack} hitSlop={8} accessibilityLabel="Back">
+              <ChevronLeft size={28} color={colors.text.primary} />
+            </Pressable>
+          ) : null}
+          <Text style={styles.title}>Fill Your Profile</Text>
+        </View>
+
+        <View style={styles.avatarBlock}>
+          <AvatarPicker uri={avatarUri} onPress={() => setUploadTarget('avatar')} />
+        </View>
+
+        <View style={styles.fields}>
+          <Controller
+            control={control}
+            name="fullName"
+            render={({ field: { value, onChange, onBlur } }) => (
+              <FieldShell error={errors.fullName?.message}>
+                <TextInput
+                  style={styles.input}
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Full Name"
+                  placeholderTextColor={colors.text.tertiary}
+                />
+              </FieldShell>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="businessName"
+            render={({ field: { value, onChange, onBlur } }) => (
+              <FieldShell error={errors.businessName?.message}>
+                <TextInput
+                  style={styles.input}
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Business Name"
+                  placeholderTextColor={colors.text.tertiary}
+                />
+              </FieldShell>
+            )}
+          />
+
+          <Pressable onPress={() => setTradePickerOpen(true)}>
+            <FieldShell error={errors.trades?.message as string | undefined}>
+              <Text
+                style={[styles.input, trades.length === 0 && styles.placeholder]}
+                numberOfLines={1}
+              >
+                {trades.length > 0 ? tradesToLabel(trades) : 'Trade & Services'}
+              </Text>
+              <Calendar size={20} color={colors.text.tertiary} />
+            </FieldShell>
+          </Pressable>
+
+          <Controller
+            control={control}
+            name="email"
+            render={({ field: { value } }) => (
+              <FieldShell error={errors.email?.message}>
+                <Text
+                  style={[styles.input, !value && styles.placeholder]}
+                  numberOfLines={1}
+                >
+                  {value || 'Email'}
+                </Text>
+                <Mail size={20} color={colors.text.tertiary} />
+              </FieldShell>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="about"
+            render={({ field: { value, onChange, onBlur } }) => (
+              <FieldShell error={undefined} multiline>
+                <TextInput
+                  style={[styles.input, styles.multilineInput]}
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Tell us about yourself"
+                  placeholderTextColor={colors.text.tertiary}
+                  multiline
+                  numberOfLines={4}
+                  textAlignVertical="top"
+                />
+              </FieldShell>
+            )}
+          />
+
+          <UploadField
+            label="Upload COI for Larger Jobs :  (Optional)"
+            fileName={coiUri}
+            onPress={() => setUploadTarget('coi')}
+          />
+
+          <UploadField
+            label="Upload W-9 to Verify Account : Optional"
+            fileName={w9Uri}
+            onPress={() => setUploadTarget('w9')}
+          />
+        </View>
+
+        <Pressable
+          style={[styles.cta, submitting && styles.ctaDisabled]}
+          disabled={submitting}
+          onPress={handleSubmit(onSubmit)}
+        >
+          <Text style={styles.ctaLabel}>{submitting ? 'Submitting…' : 'Continue'}</Text>
+        </Pressable>
+      </ScrollView>
+
+      <BottomSheet visible={uploadTarget !== null} onClose={() => setUploadTarget(null)}>
+        <View style={styles.chipRow}>
+          <UploadActionChip
+            label="Document"
+            color={colors.accent.orange}
+            Icon={FileIcon}
+            onPress={handleDocument}
+          />
+          <UploadActionChip
+            label="Camera"
+            color={colors.accent.teal}
+            Icon={Camera}
+            onPress={handleCamera}
+          />
+          <UploadActionChip
+            label="Gallery"
+            color={colors.accent.purple}
+            Icon={ImageIcon}
+            onPress={handleGallery}
+          />
+        </View>
+      </BottomSheet>
+
+      <TradeServicesPicker
+        visible={tradePickerOpen}
+        selected={trades}
+        onClose={() => setTradePickerOpen(false)}
+        onChange={(next) => setValue('trades', next as Trade[])}
+      />
+    </KeyboardAvoidingView>
+  );
+}
+
+function FieldShell({
+  children,
+  error,
+  multiline,
+}: {
+  children: React.ReactNode;
+  error?: string;
+  multiline?: boolean;
+}) {
+  return (
+    <View>
+      <View style={[styles.field, multiline && styles.fieldMultiline]}>{children}</View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  flex: { flex: 1 },
+  scroll: {
+    paddingHorizontal: spacing.screen,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xxl,
+    gap: spacing.lg,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    height: 48,
+  },
+  title: {
+    ...typography.h3,
+    color: colors.text.primary,
+    flex: 1,
+  },
+  avatarBlock: {
+    alignItems: 'center',
+    marginVertical: spacing.sm,
+  },
+  fields: {
+    gap: spacing.lg,
+  },
+  field: {
+    minHeight: 56,
+    paddingHorizontal: 20,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.mutedAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fieldMultiline: {
+    minHeight: 120,
+    paddingVertical: 16,
+    alignItems: 'flex-start',
+  },
+  input: {
+    flex: 1,
+    ...typography.bodySmall,
+    color: colors.text.primary,
+    padding: 0,
+  },
+  multilineInput: {
+    minHeight: 88,
+    textAlignVertical: 'top',
+  },
+  placeholder: {
+    color: colors.text.tertiary,
+  },
+  error: {
+    ...typography.caption,
+    color: colors.status.danger,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  cta: {
+    height: 58,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.lg,
+    shadowColor: colors.brand.primary,
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    shadowOffset: { width: 4, height: 8 },
+    elevation: 6,
+  },
+  ctaDisabled: {
+    backgroundColor: '#3062c8',
+  },
+  ctaLabel: {
+    fontFamily: 'Urbanist-Bold',
+    fontWeight: '700',
+    fontSize: 16,
+    lineHeight: 22,
+    letterSpacing: 0.2,
+    color: colors.surface.base,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 16,
+  },
+  successWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: spacing.md,
+    backgroundColor: colors.surface.base,
+  },
+  successTitle: {
+    ...typography.h2,
+    color: colors.text.primary,
+    textAlign: 'center',
+    marginTop: spacing.md,
+  },
+  successBody: {
+    ...typography.body,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    maxWidth: 320,
+  },
+});

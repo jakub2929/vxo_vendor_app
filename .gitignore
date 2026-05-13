@@ -42,3 +42,10 @@ app-example
 /ios
 /android
 .env.local
+
+# Figma API response cache
+assets/figma-refs/.cache/
+
+# Environment variables
+.env
+.env.local

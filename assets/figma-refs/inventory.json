@@ -1,0 +1,52 @@
+{
+  "screens": [
+    "1-light-splash-screen.png",
+    "10-light-otp-code-verification-type-form.png",
+    "11-light-otp-code-verification-filled-form.png",
+    "12-light-fill-your-profile-blank-form.png",
+    "13-light-fill-your-profile-filled-form.png",
+    "16-light-account-setup-successful.png",
+    "17-first-time-login.png",
+    "19-light-select-contact-to-chat.png",
+    "2-light-welcome-screen.png",
+    "20-completed-job-thread-id.png",
+    "20-light-chat-details.png",
+    "29-light-personal-contact-details.png",
+    "3-light-lets-you-in.png",
+    "4-light-sign-in-blank-form.png",
+    "5-light-sign-in-type-form.png",
+    "57-home-tab.png",
+    "6-light-sign-in-filled-form.png",
+    "65-light-home-more-menu-option.png",
+    "7-light-sign-up-blank-form.png",
+    "8-light-sign-up-type-form.png"
+  ],
+  "icons": [
+    "3-user.svg",
+    "add-user.svg",
+    "arrow-down-2.svg",
+    "arrow-right-2.svg",
+    "call.svg",
+    "camera.svg",
+    "curved-3-user.svg",
+    "curved-calendar.svg",
+    "curved-danger-square.svg",
+    "curved-image-2.svg",
+    "curved-message.svg",
+    "curved-setting.svg",
+    "curved-volume-down.svg",
+    "document.svg",
+    "edit-square.svg",
+    "image.svg",
+    "light-outline-arrow-left.svg",
+    "more-circle.svg",
+    "search.svg",
+    "voice.svg"
+  ],
+  "tokens": {
+    "hasTokens": true,
+    "colors": 52,
+    "typography": 32,
+    "shadows": 4
+  }
+}
