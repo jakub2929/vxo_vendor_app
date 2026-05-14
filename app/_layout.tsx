@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { appReadyPromise } from '@/lib/appReady';
 // Side-effect import: registers the foreground notification handler + tap
@@ -170,7 +170,12 @@ function AuthGate() {
     };
   }, [authLoaded, isAppReady, lockTick, router, segments, session]);
 
-  return <Slot />;
+  // Stack (not Slot) so top-level routes (settings, search, job, learn-more)
+  // become push-stacked children — gives them iOS edge-swipe-back. Group
+  // children ((tabs), (public), (authed-no-tabs)) also live in this stack;
+  // AuthGate uses router.replace between groups, which clears history, so
+  // there's nothing to swipe back to from the first screen of a fresh group.
+  return <Stack screenOptions={{ headerShown: false }} />;
 }
 
 export default function RootLayout() {
