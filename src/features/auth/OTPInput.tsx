@@ -17,18 +17,24 @@ type Props = {
   length?: number;
   onComplete?: (value: string) => void;
   autoFocus?: boolean;
+  /** Renders entered digits as `•` instead of the digit. Used by PIN screens. */
+  mask?: boolean;
+  /** Per-box width override. Defaults to the 6-digit OTP layout. */
+  boxWidth?: number;
+  /** Gap between boxes. Defaults to the 6-digit OTP layout. */
+  boxGap?: number;
 };
 
 // Box styling mirrors Figma node 4:10251 — bg #fafafa, 1px #eee border,
 // radius 16, digit Urbanist Bold 24 #212121. Active state (node 4:10253):
 // bg #246bfd14 (~8% alpha), border 1px brand.primary.
 //
-// Figma shows 4 boxes (83×61, gap 16) on a 380px content row. Supabase requires
-// a 6-digit email OTP, so we render 6 boxes — re-fit to the same 380px row by
-// shrinking width to 55 with a 10px gap (6×55 + 5×10 = 380). Height stays 61.
-const BOX_WIDTH = 55;
+// Figma shows 4 boxes (83×61, gap 16) on a 380px content row. The 4-box layout
+// is also used by the PIN screens. For the 6-digit email OTP we shrink the box
+// to 55 with a 10px gap (6×55 + 5×10 = 380). Height stays 61 in both cases.
+const DEFAULT_BOX_WIDTH = 55;
 const BOX_HEIGHT = 61;
-const BOX_GAP = 10;
+const DEFAULT_BOX_GAP = 10;
 const ACTIVE_BG = '#246bfd14';
 
 export function OTPInput({
@@ -37,8 +43,11 @@ export function OTPInput({
   length = 6,
   onComplete,
   autoFocus = true,
+  mask = false,
+  boxWidth = DEFAULT_BOX_WIDTH,
+  boxGap = DEFAULT_BOX_GAP,
 }: Props) {
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
   const digits = useMemo(() => {
@@ -95,7 +104,7 @@ export function OTPInput({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { gap: boxGap }]}>
       {digits.map((digit, index) => {
         const active = focusedIndex === index;
 
@@ -103,11 +112,11 @@ export function OTPInput({
           <Pressable
             key={index}
             onPress={() => inputRefs.current[index]?.focus()}
-            style={[styles.box, active && styles.boxActive]}
+            style={[styles.box, { width: boxWidth }, active && styles.boxActive]}
           >
             {digit ? (
               <Text style={styles.digit} allowFontScaling={false}>
-                {digit}
+                {mask ? '•' : digit}
               </Text>
             ) : null}
             <TextInput
@@ -138,10 +147,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: BOX_GAP,
   },
   box: {
-    width: BOX_WIDTH,
     height: BOX_HEIGHT,
     borderRadius: radius.md,
     backgroundColor: colors.surface.mutedAlt,

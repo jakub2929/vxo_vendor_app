@@ -42,7 +42,21 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "VXO uses Face ID to unlock the app so your jobs stay private even if your phone is unattended."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "VXO uses your photos to upload your profile photo and attach photos to jobs.",
+          "cameraPermission": "VXO uses the camera to take photos for your profile and to attach photos to jobs.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

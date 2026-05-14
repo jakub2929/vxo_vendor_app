@@ -42,7 +42,7 @@ export function ChatsScreen() {
   };
 
   const handleSettings = () => {
-    console.log('[ChatsScreen] open settings');
+    router.push('/settings');
   };
 
   return (
