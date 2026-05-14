@@ -20,6 +20,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -37,6 +38,7 @@ import {
   setMockCheckinTime,
   setMockJobStatus,
 } from '@/lib/mockChatState';
+import { supabase } from '@/lib/supabase';
 import { colors, typography } from '@/theme';
 import { actionsForStatus, buildTimeline } from './buildTimeline';
 import { JobChatComposer } from './JobChatComposer';
@@ -62,6 +64,7 @@ export function JobChatScreen({ jobId }: Props) {
   const sendMessage = useSendMessage(jobId);
   useJobChatRealtime(jobId);
   const { data: vendorCoords } = useVendorLocation();
+  const queryClient = useQueryClient();
 
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
@@ -107,75 +110,133 @@ export function JobChatScreen({ jobId }: Props) {
     else router.replace('/(tabs)');
   };
 
-  const handleAction = (kind: ActionCardSpec['kind']) => {
+  // After an RPC succeeds we invalidate the open chat's job-row query (drives
+  // the action card + status indicator) and the jobs-list prefix (so the
+  // Jobs tab's row reflects the new status if the user backs out). Realtime
+  // covers the latter too — invalidating is belt-and-suspenders.
+  const invalidateAfterTransition = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['chat', 'job', jobId] });
+    void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+  };
+
+  const handleAction = async (kind: ActionCardSpec['kind']) => {
     if (!job) return;
-    // In real mode the mutations live in screens-not-yet-built (Quote
-    // builder, Invoice builder, etc). For now in mock mode we apply the
-    // status transition + the canned bubble so the demo flow is visible.
-    if (!USE_MOCKS) {
-      // TODO(real-data): wire to backend transitions (Accept → API call to
-      //   /jobs/:id/accept, Get Directions → /jobs/:id/start, etc).
-      return;
-    }
+
     switch (kind) {
       case 'accept':
-        setMockJobStatus(job.id, 'accepted');
-        appendMockMessage(job.id, {
-          sender: 'vendor',
-          content: 'You Accepted. Need to Reject. Press Here.',
-        });
+        if (USE_MOCKS) {
+          setMockJobStatus(job.id, 'accepted');
+          appendMockMessage(job.id, {
+            sender: 'vendor',
+            content: 'You Accepted. Need to Reject. Press Here.',
+          });
+        } else {
+          const { error } = await supabase.rpc('accept_job', {
+            p_job_id: job.id,
+          });
+          if (error) {
+            Alert.alert("Couldn't accept", error.message);
+            return;
+          }
+          await invalidateAfterTransition();
+        }
         break;
+
       case 'reject':
-        setMockJobStatus(job.id, 'cancelled');
-        appendMockMessage(job.id, {
-          sender: 'system',
-          content: 'Job declined. The dispatcher has been notified.',
-        });
+        if (USE_MOCKS) {
+          setMockJobStatus(job.id, 'cancelled');
+          appendMockMessage(job.id, {
+            sender: 'system',
+            content: 'Job declined. The dispatcher has been notified.',
+          });
+        } else {
+          const { error } = await supabase.rpc('reject_job', {
+            p_job_id: job.id,
+          });
+          if (error) {
+            Alert.alert("Couldn't reject", error.message);
+            return;
+          }
+          await invalidateAfterTransition();
+        }
         break;
+
       case 'get_directions':
-        setMockJobStatus(job.id, 'en_route');
-        appendMockMessage(job.id, {
-          sender: 'alfred',
-          content:
-            'Get Directions. Client has been notified you are on the way. Click here to cancel.',
-        });
+        // Button label is "Get Directions" but this is the accepted → en_route
+        // transition. Opening Maps is a separate concern not wired yet.
+        if (USE_MOCKS) {
+          setMockJobStatus(job.id, 'en_route');
+          appendMockMessage(job.id, {
+            sender: 'alfred',
+            content:
+              'Get Directions. Client has been notified you are on the way. Click here to cancel.',
+          });
+        } else {
+          const { error } = await supabase.rpc('start_travel', {
+            p_job_id: job.id,
+          });
+          if (error) {
+            Alert.alert("Couldn't start travel", error.message);
+            return;
+          }
+          await invalidateAfterTransition();
+        }
         break;
+
       case 'invoice_client':
-        // TODO: route to Invoice builder screen.
-        appendMockMessage(job.id, {
-          sender: 'vendor',
-          content:
-            'You selected Invoice. If you need to go back to Quote press Here.',
-        });
+        if (USE_MOCKS) {
+          appendMockMessage(job.id, {
+            sender: 'vendor',
+            content:
+              'You selected Invoice. If you need to go back to Quote press Here.',
+          });
+        } else {
+          // Coming-soon stub — Invoice builder screen hasn't shipped yet.
+          Alert.alert(
+            'Coming soon',
+            'Invoice builder not yet available. This feature is coming in a future update.',
+          );
+        }
         break;
+
       case 'send_quote':
-        // TODO: route to Quote builder screen.
-        appendMockMessage(job.id, {
-          sender: 'vendor',
-          content: 'You selected Quote. The client will see it shortly.',
-        });
+        if (USE_MOCKS) {
+          appendMockMessage(job.id, {
+            sender: 'vendor',
+            content: 'You selected Quote. The client will see it shortly.',
+          });
+        } else {
+          Alert.alert(
+            'Coming soon',
+            'Quote builder not yet available. This feature is coming in a future update.',
+          );
+        }
         break;
+
       case 'questions':
-        // TODO: route to Questions / Contact Client flow.
-        appendMockMessage(job.id, {
-          sender: 'alfred',
-          content: 'We ask 3 quick questions to build an invoice for you.',
-        });
+        if (USE_MOCKS) {
+          appendMockMessage(job.id, {
+            sender: 'alfred',
+            content: 'We ask 3 quick questions to build an invoice for you.',
+          });
+        } else {
+          Alert.alert(
+            'Coming soon',
+            'Questions / Contact Client flow not yet available. This feature is coming in a future update.',
+          );
+        }
         break;
+
       case 'view_invoice':
-        // TODO: route to Invoice viewer.
-        appendMockMessage(job.id, {
-          sender: 'system',
-          content: 'Opening invoice…',
-        });
+        // TODO: view invoice flow pending Invoice builder screen. Currently
+        // unreachable — actionsForStatus() never returns 'view_invoice'.
+        if (USE_MOCKS) {
+          appendMockMessage(job.id, {
+            sender: 'system',
+            content: 'Opening invoice…',
+          });
+        }
         break;
-    }
-    // Side-effect for the on_site marker: stamp checkin_time so the
-    // timeline can render "On site Nm" once the vendor has arrived. The
-    // builder reads jobs.checkin_time, so we need to set it explicitly.
-    if (kind === 'get_directions') {
-      // No-op — checkin happens on "Arrived on site", not on "Get
-      // Directions". Left as a doc comment so future me doesn't move it.
     }
   };
 
@@ -269,20 +330,40 @@ export function JobChatScreen({ jobId }: Props) {
     [job],
   );
 
-  // No-op: simulate vendor manually marking on-site once they've actually
-  // arrived. Exposed via the composer for demo purposes.
-  const handleSend = (text: string) => {
-    sendMessage.mutate({ content: text, sender: 'vendor' });
-    // If the job is en_route and there's no checkin yet, advance to
-    // on_site on the first vendor message (a reasonable demo heuristic).
-    if (
-      USE_MOCKS &&
-      job &&
-      job.status === 'en_route' &&
-      !job.checkin_time
-    ) {
-      setMockCheckinTime(job.id, new Date().toISOString());
-      setMockJobStatus(job.id, 'on_site');
+  // First vendor message after en_route promotes the job to on_site. This
+  // is a demo heuristic, not a geolocation-checked arrival flow — see the
+  // proposal's "geolocation-based arrival" item for the proper version.
+  const handleSend = async (text: string) => {
+    if (!job) return;
+
+    if (USE_MOCKS) {
+      sendMessage.mutate({ content: text, sender: 'vendor' });
+      if (job.status === 'en_route' && !job.checkin_time) {
+        setMockCheckinTime(job.id, new Date().toISOString());
+        setMockJobStatus(job.id, 'on_site');
+      }
+      return;
+    }
+
+    // Real mode: await the insert so we only attempt the on_site promotion
+    // after the message has actually persisted. mutateAsync surfaces errors
+    // via its own onError path; we just bail on rejection.
+    try {
+      await sendMessage.mutateAsync({ content: text, sender: 'vendor' });
+    } catch {
+      return;
+    }
+    if (job.status === 'en_route' && !job.checkin_time) {
+      const { error } = await supabase.rpc('mark_on_site', {
+        p_job_id: job.id,
+      });
+      if (error) {
+        // Non-fatal: the message went through. Don't block the composer on
+        // a failed transition — log and let the user retry from the UI.
+        console.warn('[handleSend] mark_on_site failed:', error.message);
+        return;
+      }
+      await invalidateAfterTransition();
     }
   };
 

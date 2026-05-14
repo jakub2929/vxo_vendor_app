@@ -356,7 +356,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      // Manually added pending the next `supabase gen types typescript` run.
+      // Source of truth: supabase/schema/add-job-transition-rpcs.sql.
+      accept_job: {
+        Args: { p_job_id: string }
+        Returns: Database['public']['Tables']['jobs']['Row'][]
+      }
+      reject_job: {
+        Args: { p_job_id: string; p_reason?: string | null }
+        Returns: Database['public']['Tables']['jobs']['Row'][]
+      }
+      start_travel: {
+        Args: { p_job_id: string }
+        Returns: Database['public']['Tables']['jobs']['Row'][]
+      }
+      mark_on_site: {
+        Args: { p_job_id: string }
+        Returns: Database['public']['Tables']['jobs']['Row'][]
+      }
     }
     Enums: {
       [_ in never]: never
