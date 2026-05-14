@@ -46,7 +46,16 @@ export type ActionCardSpec =
 export type TimelineItem =
   | { kind: 'date_separator'; id: string; label: string }
   | { kind: 'sla_banner'; id: string; text: string }
-  | { kind: 'info_card_location'; id: string; address: string; timestamp: string | null }
+  | {
+      kind: 'info_card_location';
+      id: string;
+      address: string;
+      timestamp: string | null;
+      // Straight-line miles from vendor GPS → job coords. Populated at render
+      // time in JobChatScreen (buildTimeline stays pure), null when GPS is
+      // unavailable or job has no coordinates.
+      distance: number | null;
+    }
   | {
       kind: 'info_card_wo';
       id: string;

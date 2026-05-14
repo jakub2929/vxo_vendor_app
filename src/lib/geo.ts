@@ -38,3 +38,11 @@ export function formatMiles(miles: number): string {
   }
   return miles.toFixed(1);
 }
+
+// "2.5 mi" / ".4 mi" / "—". Used by the Job Chat Location info card and the
+// SLA banner where the unit string belongs next to the number. JobRow keeps
+// the older "{n} Miles Away" Figma copy and uses formatMiles directly.
+export function formatDistance(miles: number | null): string {
+  if (miles == null || !Number.isFinite(miles)) return '—';
+  return `${formatMiles(miles)} mi`;
+}

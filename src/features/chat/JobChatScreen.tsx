@@ -29,6 +29,8 @@ import {
   type AttachmentSource,
 } from '@/components/AttachmentBottomSheet';
 import { USE_MOCKS } from '@/features/home/useHomeData';
+import { useVendorLocation } from '@/hooks/useVendorLocation';
+import { formatDistance, haversineMiles } from '@/lib/geo';
 import {
   appendMockAttachment,
   appendMockMessage,
@@ -59,15 +61,46 @@ export function JobChatScreen({ jobId }: Props) {
     useJobMessages(jobId);
   const sendMessage = useSendMessage(jobId);
   useJobChatRealtime(jobId);
+  const { data: vendorCoords } = useVendorLocation();
 
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
   const pickerBusy = useRef(false);
 
+  // Straight-line miles vendor → job. Null when GPS is unavailable (perm
+  // denied, hook still loading) OR when the job has no coordinates. Same
+  // shape as JobRow's composeHeadline — keeps buildTimeline pure.
+  const distanceMi = useMemo<number | null>(() => {
+    if (!job || !vendorCoords) return null;
+    if (job.location_lat == null || job.location_lng == null) return null;
+    return haversineMiles(vendorCoords, {
+      lat: Number(job.location_lat),
+      lng: Number(job.location_lng),
+    });
+  }, [job, vendorCoords]);
+
   const timeline = useMemo<TimelineItem[]>(() => {
     if (!job) return [];
-    return buildTimeline(job, messages);
-  }, [job, messages]);
+    const base = buildTimeline(job, messages);
+    // Post-process: inject distance into the Location info card, and rewrite
+    // the SLA banner text to include miles when GPS is available. Both
+    // pieces of UI need the vendor coords, so we compose them here rather
+    // than threading GPS through the pure builder.
+    const slaHour = job.urgency === 'emergency' ? '2 Hour' : '4 Hour';
+    const slaText =
+      distanceMi != null
+        ? `${slaHour} - ${formatDistance(distanceMi)} away`
+        : slaHour;
+    return base.map((item) => {
+      if (item.kind === 'info_card_location') {
+        return { ...item, distance: distanceMi };
+      }
+      if (item.kind === 'sla_banner') {
+        return { ...item, text: slaText };
+      }
+      return item;
+    });
+  }, [job, messages, distanceMi]);
 
   const handleBack = () => {
     if (router.canGoBack()) router.back();

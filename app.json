@@ -9,10 +9,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "VXO uses your location to show how far away each work order is, so you can pick the closest job first."
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
@@ -55,6 +52,12 @@
           "photosPermission": "VXO uses your photos to upload your profile photo and attach photos to jobs.",
           "cameraPermission": "VXO uses the camera to take photos for your profile and to attach photos to jobs.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "VXO uses your location to show how far away each work order is, so you can pick the closest job first."
         }
       ]
     ],

@@ -7,6 +7,7 @@
 //   - Outgoing (blue, right): tl=20, tr=20, br=8,  bl=20  → bottom-right tail
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCheck, FileText } from 'lucide-react-native';
+import { formatDistance } from '@/lib/geo';
 import { colors, shadows, typography } from '@/theme';
 import type {
   ActionCardSpec,
@@ -63,9 +64,11 @@ function InfoCardShell({
 export function InfoCardLocation({
   address,
   timestamp,
+  distance,
 }: {
   address: string;
   timestamp: string | null;
+  distance: number | null;
 }) {
   return (
     <InfoCardShell timestamp={timestamp}>
@@ -73,6 +76,9 @@ export function InfoCardLocation({
         <Text style={styles.infoCardTitle}>📍 Location</Text>
       </Text>
       <Text style={styles.infoCardLine}>{address}</Text>
+      {distance != null && (
+        <Text style={styles.infoCardLine}>{formatDistance(distance)} away</Text>
+      )}
     </InfoCardShell>
   );
 }
@@ -382,7 +388,11 @@ export function renderTimelineItem(
       return <SLABanner text={item.text} />;
     case 'info_card_location':
       return (
-        <InfoCardLocation address={item.address} timestamp={item.timestamp} />
+        <InfoCardLocation
+          address={item.address}
+          timestamp={item.timestamp}
+          distance={item.distance}
+        />
       );
     case 'info_card_wo':
       return (

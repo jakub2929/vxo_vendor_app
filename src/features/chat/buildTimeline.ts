@@ -156,6 +156,9 @@ export function buildTimeline(
     id: 'card-location',
     address: job.address,
     timestamp: job.created_at ? formatTimeOfDay(job.created_at) : null,
+    // Distance is injected by JobChatScreen via post-process — buildTimeline
+    // is pure and has no access to GPS. See callsite for the override.
+    distance: null,
   });
 
   items.push({
