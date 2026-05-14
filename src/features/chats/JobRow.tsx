@@ -8,7 +8,6 @@ import { JobAvatar } from './JobAvatar';
 import {
   formatRowTimestamp,
   jobStatusMeta,
-  tradeLabel,
 } from './jobStatusMeta';
 
 type Job = Database['public']['Tables']['jobs']['Row'];
@@ -18,25 +17,21 @@ type Props = {
   onPress?: () => void;
 };
 
-// 1:1 port of Figma "Account List, Type=Messenger List" (instances 4:10448–
-// 4:10452 inside frame 4:10443 "Home Page Open Work Orders"). Layout:
-//   [60×60 avatar + status dot] [title / headline / subtitle] [timestamp]
-// Headline composition:
-//   - eta_label + distance → "4 Hour - 2.5 Miles Away"  (red)
-//   - eta_label only       → "This Week"                (red)
-//   - distance only        → "2.5 Miles Away"           (red)
-//   - literal (terminal)   → "Completed"                (green)
-// Distance comes from useVendorLocation (GPS) + the job's stored coords.
-// Permission-denied / coords-missing simply omits the distance suffix —
-// never blocks the row.
+// Row layout (top → bottom in the content column):
+//   1. Title (bold)   — "WO# {shortId}". Trade lives on the Job Chat header,
+//                       not here, so the title stays scannable.
+//   2. Status         — colored timing line. ETA / "Today, 4:00 PM" /
+//                       "Completed" / etc. No distance suffix.
+//   3. Subtitle (gray)— straight-line distance from vendor GPS. "5.7 mi away"
+//                       when known, "—" when GPS or coords are unavailable.
 //
-// Badge (the "5" / "2" pill in Figma) is intentionally hidden: jobs and
-// job_messages have no read_at / unread_count column, so any number would
-// be invented. See TODO below.
+// jobStatusMeta still carries an instruction subtitle ("Check in here when…")
+// from the original Figma 4:10443 design — intentionally unused here now that
+// the subtitle slot is the distance line. Left in the meta module untouched
+// so any other consumer keeps working.
 export function JobRow({ job, onPress }: Props) {
   const meta = jobStatusMeta(job.status as JobStatus);
   const shortId = job.id.slice(0, 8);
-  const trade = tradeLabel(job.trade);
   const timestamp = formatRowTimestamp(job.updated_at ?? job.created_at ?? '');
 
   const { data: vendorCoords } = useVendorLocation();
@@ -47,39 +42,38 @@ export function JobRow({ job, onPress }: Props) {
   const distanceMi =
     vendorCoords && jobCoords ? haversineMiles(vendorCoords, jobCoords) : null;
 
-  const headline = composeHeadline({
+  const status = composeStatus({
     literal: meta.literalHeadline,
     eta: job.eta_label,
-    distanceMi,
   });
+  const distanceLabel =
+    distanceMi != null ? `${formatMiles(distanceMi)} mi away` : '—';
 
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Work order ${shortId} ${trade}, ${headline ?? 'no status'}`}
+      accessibilityLabel={`Work order ${shortId}, ${status ?? 'no status'}, ${distanceLabel}`}
     >
       <JobAvatar dotVariant={meta.dotVariant} />
 
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
           {/* TODO: human-readable short job ID — pending Ryan comment */}
-          WO# {shortId} - {trade}
+          WO# {shortId}
         </Text>
-        {headline && (
+        {status && (
           <Text
-            style={[styles.headline, { color: meta.headlineColor }]}
+            style={[styles.status, { color: meta.headlineColor }]}
             numberOfLines={1}
           >
-            {headline}
+            {status}
           </Text>
         )}
-        {meta.subtitle.length > 0 && (
-          <Text style={styles.subtitle} numberOfLines={1} ellipsizeMode="tail">
-            {meta.subtitle}
-          </Text>
-        )}
+        <Text style={styles.subtitle} numberOfLines={1}>
+          {distanceLabel}
+        </Text>
       </View>
 
       <View style={styles.rightColumn}>
@@ -91,18 +85,12 @@ export function JobRow({ job, onPress }: Props) {
   );
 }
 
-function composeHeadline(opts: {
+function composeStatus(opts: {
   literal: string | null;
   eta: string | null;
-  distanceMi: number | null;
 }): string | null {
   if (opts.literal) return opts.literal;
-  const parts: string[] = [];
-  if (opts.eta) parts.push(opts.eta);
-  if (opts.distanceMi != null) {
-    parts.push(`${formatMiles(opts.distanceMi)} Miles Away`);
-  }
-  return parts.length > 0 ? parts.join(' - ') : null;
+  return opts.eta ?? null;
 }
 
 const styles = StyleSheet.create({
@@ -122,11 +110,11 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'Urbanist-Bold',
     fontWeight: '700',
-    fontSize: 18,
-    lineHeight: 21.6,
+    fontSize: 17,
+    lineHeight: 22,
     color: colors.text.primary,
   },
-  headline: {
+  status: {
     fontFamily: 'Urbanist-Medium',
     fontWeight: '500',
     fontSize: 14,
@@ -134,10 +122,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   subtitle: {
-    fontFamily: 'Urbanist-Medium',
-    fontWeight: '500',
-    fontSize: 14,
-    lineHeight: 19.6,
+    fontFamily: 'Urbanist-Regular',
+    fontWeight: '400',
+    fontSize: 13,
+    lineHeight: 18.2,
     letterSpacing: 0.2,
     color: '#616161',
   },
