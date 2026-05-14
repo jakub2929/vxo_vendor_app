@@ -10,6 +10,8 @@ type Props = {
   title: string;
   Icon: ComponentType<IconProps>;
   onPress: () => void;
+  preview?: string;
+  unreadCount?: number;
 };
 
 const AVATAR_SIZE = 60;
@@ -17,13 +19,22 @@ const FAB_SIZE = 36;
 const GRADIENT_START = { x: 1, y: 0 };
 const GRADIENT_END = { x: 0, y: 1 };
 
-export function SupportListItem({ title, Icon, onPress }: Props) {
+export function SupportListItem({
+  title,
+  Icon,
+  onPress,
+  preview,
+  unreadCount = 0,
+}: Props) {
+  const hasUnread = unreadCount > 0;
   return (
     <Pressable
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.pressed]}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={
+        hasUnread ? `${title} — ${unreadCount} unread` : title
+      }
     >
       <LinearGradient
         colors={colors.brand.headerGradient}
@@ -33,19 +44,37 @@ export function SupportListItem({ title, Icon, onPress }: Props) {
       >
         <Icon size={24} color="#ffffff" />
       </LinearGradient>
-      <Text style={styles.title} numberOfLines={1}>
-        {title}
-      </Text>
-      <View style={styles.fabShadow}>
-        <LinearGradient
-          colors={colors.brand.headerGradient}
-          start={GRADIENT_START}
-          end={GRADIENT_END}
-          style={styles.fab}
-        >
-          <MessageCircle size={18} color="#ffffff" />
-        </LinearGradient>
+      <View style={styles.textCol}>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        {preview ? (
+          <Text
+            style={[styles.preview, hasUnread && styles.previewUnread]}
+            numberOfLines={1}
+          >
+            {preview}
+          </Text>
+        ) : null}
       </View>
+      {hasUnread ? (
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>
+            {unreadCount > 9 ? '9+' : String(unreadCount)}
+          </Text>
+        </View>
+      ) : (
+        <View style={styles.fabShadow}>
+          <LinearGradient
+            colors={colors.brand.headerGradient}
+            start={GRADIENT_START}
+            end={GRADIENT_END}
+            style={styles.fab}
+          >
+            <MessageCircle size={18} color="#ffffff" />
+          </LinearGradient>
+        </View>
+      )}
     </Pressable>
   );
 }
@@ -67,10 +96,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  textCol: {
+    flex: 1,
+    gap: 4,
+  },
   title: {
     ...typography.bodyBold,
     color: colors.text.primary,
-    flex: 1,
+  },
+  preview: {
+    ...typography.caption,
+    color: colors.text.tertiary,
+  },
+  previewUnread: {
+    color: colors.text.primary,
+    fontFamily: 'Urbanist-SemiBold',
+    fontWeight: '600',
   },
   fabShadow: {
     borderRadius: FAB_SIZE / 2,
@@ -82,5 +123,21 @@ const styles = StyleSheet.create({
     borderRadius: FAB_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  badge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 7,
+    backgroundColor: colors.brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: {
+    color: '#ffffff',
+    fontFamily: 'Urbanist-Bold',
+    fontWeight: '700',
+    fontSize: 12,
+    lineHeight: 14,
   },
 });
