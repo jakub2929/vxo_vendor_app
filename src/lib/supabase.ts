@@ -17,7 +17,12 @@ try {
   SecureStore = null;
 }
 
-// Platform-aware storage adapter
+// Platform-aware storage adapter.
+// TODO: SecureStore on iOS warns when a value exceeds 2048 bytes — the Supabase
+// session blob (access + refresh + user) can cross that line, especially after
+// MFA / longer JWT claims. Wrap setItem/getItem with a chunking layer
+// (split into key__0, key__1, … on write; reassemble on read) in a future ticket.
+// For now the warning is benign — SecureStore still persists the value.
 const StorageAdapter = {
   getItem: async (key: string) => {
     try {

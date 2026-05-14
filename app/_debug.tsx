@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import Constants from 'expo-constants';
+import * as Device from 'expo-device';
+import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '@/components/PrimaryButton';
@@ -287,6 +290,75 @@ export default function DebugSmokeTestScreen() {
           loading={devLoading}
         />
         <PrimaryButton label="Sign out" onPress={handleDevSignOut} />
+        <PrimaryButton
+          label="🔔 Send test notification"
+          onPress={async () => {
+            if (!Device.isDevice) {
+              Alert.alert(
+                'Simulator',
+                'Push tokens only work on physical devices.',
+              );
+              return;
+            }
+            const { status: existing } =
+              await Notifications.getPermissionsAsync();
+            let finalStatus = existing;
+            if (existing !== 'granted') {
+              const { status } =
+                await Notifications.requestPermissionsAsync();
+              finalStatus = status;
+            }
+            if (finalStatus !== 'granted') {
+              Alert.alert(
+                'Permission required',
+                'Enable notifications in Settings to receive a test push.',
+              );
+              return;
+            }
+            const projectId =
+              Constants.expoConfig?.extra?.eas?.projectId ??
+              Constants.easConfig?.projectId;
+            if (!projectId) {
+              Alert.alert(
+                'No EAS projectId',
+                'Run `npx eas init` to link this app to an EAS project, then restart Metro.',
+              );
+              return;
+            }
+            let token: string;
+            try {
+              token = (await Notifications.getExpoPushTokenAsync({ projectId }))
+                .data;
+            } catch (e) {
+              Alert.alert(
+                'Token fetch failed',
+                e instanceof Error ? e.message : String(e),
+              );
+              return;
+            }
+            try {
+              const res = await fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: token,
+                  title: 'Test notification',
+                  body: 'If you see this, push works!',
+                  data: { type: 'test' },
+                }),
+              });
+              Alert.alert(
+                'Sent',
+                `Status ${res.status}. Token: ${token.slice(0, 32)}…`,
+              );
+            } catch (e) {
+              Alert.alert(
+                'Send failed',
+                e instanceof Error ? e.message : String(e),
+              );
+            }
+          }}
+        />
         <PrimaryButton
           label="🔍 Diagnostic: INSERT vendors row"
           onPress={async () => {

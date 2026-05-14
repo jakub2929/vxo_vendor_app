@@ -4,6 +4,9 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Slot, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { appReadyPromise } from '@/lib/appReady';
+// Side-effect import: registers the foreground notification handler + tap
+// response listener at module load (must run before any component mount).
+import '@/lib/notifications';
 import {
   clearUnlockedSession,
   isBiometricOffered,
