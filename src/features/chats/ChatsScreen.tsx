@@ -49,7 +49,7 @@ export function ChatsScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <View style={styles.container}>
         <ChatsHeader
-          onSearchPress={() => console.log('[ChatsScreen] search pressed')}
+          onSearchPress={() => router.push('/search')}
           onMorePress={() => setMenuVisible(true)}
           tabs={
             <ChatsTabStrip

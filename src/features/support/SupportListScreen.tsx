@@ -18,7 +18,6 @@ export function SupportListScreen() {
         <GradientHeader
           title="VXO Support"
           onBack={handleBack}
-          onSearchPress={() => console.log('[SupportList] search pressed')}
           onMorePress={() => console.log('[SupportList] more pressed')}
         />
         <View style={styles.list}>
