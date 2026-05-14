@@ -48,22 +48,26 @@ export function GradientHeader({
           </Text>
         </View>
         <View style={styles.rightCluster}>
-          <Pressable
-            hitSlop={8}
-            onPress={onSearchPress}
-            accessibilityRole="button"
-            accessibilityLabel="Search"
-          >
-            <Search color="#fff" size={24} />
-          </Pressable>
-          <Pressable
-            hitSlop={8}
-            onPress={onMorePress}
-            accessibilityRole="button"
-            accessibilityLabel="More options"
-          >
-            <MoreHorizontal color="#fff" size={24} />
-          </Pressable>
+          {onSearchPress && (
+            <Pressable
+              hitSlop={8}
+              onPress={onSearchPress}
+              accessibilityRole="button"
+              accessibilityLabel="Search"
+            >
+              <Search color="#fff" size={28} />
+            </Pressable>
+          )}
+          {onMorePress && (
+            <Pressable
+              hitSlop={8}
+              onPress={onMorePress}
+              accessibilityRole="button"
+              accessibilityLabel="More options"
+            >
+              <MoreHorizontal color="#fff" size={28} />
+            </Pressable>
+          )}
         </View>
       </View>
     </LinearGradient>

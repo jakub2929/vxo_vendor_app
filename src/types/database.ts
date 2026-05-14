@@ -279,8 +279,10 @@ export type Database = {
       vendors: {
         Row: {
           address: string | null
+          avatar_path: string | null
           bio: string | null
           business: string | null
+          coi_path: string | null
           created_at: string | null
           dispatch_fee: number | null
           email: string | null
@@ -296,12 +298,15 @@ export type Database = {
           stripe_account_id: string | null
           trades: Json | null
           updated_at: string | null
+          w9_path: string | null
           zip_code: string | null
         }
         Insert: {
           address?: string | null
+          avatar_path?: string | null
           bio?: string | null
           business?: string | null
+          coi_path?: string | null
           created_at?: string | null
           dispatch_fee?: number | null
           email?: string | null
@@ -317,12 +322,15 @@ export type Database = {
           stripe_account_id?: string | null
           trades?: Json | null
           updated_at?: string | null
+          w9_path?: string | null
           zip_code?: string | null
         }
         Update: {
           address?: string | null
+          avatar_path?: string | null
           bio?: string | null
           business?: string | null
+          coi_path?: string | null
           created_at?: string | null
           dispatch_fee?: number | null
           email?: string | null
@@ -338,6 +346,7 @@ export type Database = {
           stripe_account_id?: string | null
           trades?: Json | null
           updated_at?: string | null
+          w9_path?: string | null
           zip_code?: string | null
         }
         Relationships: []

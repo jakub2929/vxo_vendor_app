@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChatsHeader } from '@/features/chats/ChatsHeader';
-import { ChatsTabStrip } from '@/features/chats/ChatsTabStrip';
+import { GradientHeader } from '@/components/GradientHeader';
 import {
   type BiometricCapability,
   getBiometricCapability,
@@ -19,8 +18,8 @@ import {
 import { colors } from '@/theme';
 
 // Minimal Settings screen. Reachable from the More menu's Settings entry.
-// Header reuses the Learn More pattern (ChatsHeader with onBack injected +
-// decorative tab strip).
+// Header uses the shared back+title gradient pattern (Figma 4:10127), same
+// shell as Profile and Support detail screens.
 //
 // Two rows today:
 //   - Biometric toggle — conditional on PIN configured + device capable.
@@ -132,17 +131,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-      <ChatsHeader
-        onBack={() => router.back()}
-        tabs={
-          <ChatsTabStrip
-            active="status"
-            // Decorative — taps on the strip from a detail screen would be
-            // confusing UX. Same convention as Learn More.
-            onChange={() => undefined}
-          />
-        }
-      />
+      <GradientHeader title="Settings" onBack={() => router.back()} />
 
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.sectionTitle}>Security</Text>

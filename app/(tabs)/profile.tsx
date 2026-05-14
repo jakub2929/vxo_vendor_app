@@ -1,19 +1,18 @@
-import { StyleSheet, Text, View } from 'react-native';
-import { Screen } from '@/components/Screen';
-import { colors, typography } from '@/theme';
+import { StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ProfileScreen } from '@/features/profile/ProfileScreen';
+import { colors } from '@/theme';
 
-export default function ProfileScreen() {
+// GradientHeader inside ProfileScreen consumes the top inset itself, so we
+// limit SafeAreaView to the bottom edge to avoid double padding.
+export default function Profile() {
   return (
-    <Screen>
-      <View style={styles.container}>
-        <Text style={typography.h3}>Profile</Text>
-        <Text style={[typography.body, styles.subtitle]}>Coming soon</Text>
-      </View>
-    </Screen>
+    <SafeAreaView style={styles.safe} edges={['bottom']}>
+      <ProfileScreen />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  subtitle: { color: colors.text.secondary, marginTop: 8 },
+  safe: { flex: 1, backgroundColor: colors.surface.base },
 });

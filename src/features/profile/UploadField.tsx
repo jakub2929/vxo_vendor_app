@@ -1,16 +1,20 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Upload } from 'lucide-react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
+import { Eye, Upload } from 'lucide-react-native';
 import { colors, radius, typography } from '@/theme';
 
 type Props = {
   label: string;
   fileName?: string;
   onPress: () => void;
+  // Optional View affordance, shown only when a file is present and a handler
+  // is provided. Tapping the field still triggers onPress (Replace);
+  // the View icon is hit-isolated so taps on it don't bubble.
+  onView?: () => void;
 };
 
 // Mirrors Figma nodes 4:10214 (Upload COI) and 4:10215 (Upload W-9): same 56h
 // pill as text fields, placeholder text on the left, upload icon on the right.
-export function UploadField({ label, fileName, onPress }: Props) {
+export function UploadField({ label, fileName, onPress, onView }: Props) {
   const hasFile = Boolean(fileName);
   return (
     <Pressable style={styles.row} onPress={onPress}>
@@ -20,6 +24,16 @@ export function UploadField({ label, fileName, onPress }: Props) {
       >
         {hasFile ? fileName : label}
       </Text>
+      {hasFile && onView ? (
+        <Pressable
+          onPress={onView}
+          hitSlop={8}
+          accessibilityLabel="View file"
+          style={styles.viewBtn}
+        >
+          <Eye size={20} color={colors.text.secondary} />
+        </Pressable>
+      ) : null}
       <Upload size={20} color={hasFile ? colors.brand.primary : colors.text.tertiary} />
     </Pressable>
   );
@@ -44,5 +58,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Urbanist-SemiBold',
     fontWeight: '600',
     color: colors.text.primary,
+  },
+  viewBtn: {
+    padding: 4,
   },
 });
