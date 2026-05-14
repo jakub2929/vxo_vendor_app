@@ -86,7 +86,7 @@ export function alertCopyFor(
       return isAvatar
         ? [
             'Photo too large',
-            'Photos must be under 2 MB. Try a smaller image or compress it.',
+            'Photos must be under 10 MB. Try a smaller image or compress it.',
           ]
         : [
             'File too large',

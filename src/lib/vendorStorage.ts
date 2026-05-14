@@ -26,7 +26,11 @@ import {
 const AVATAR_BUCKET = 'vendor-avatars';
 const DOCUMENT_BUCKET = 'vendor-documents';
 
-const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+// iPhone camera photos at full quality run 3–7 MB (12 MP) or higher on 48 MP
+// Pro models. 2 MB was too tight for native camera output, so the avatar
+// limit matches documents at 10 MB. Server bucket has the same cap (see
+// supabase/schema/add-vendor-documents-avatars.sql Section 5).
+const AVATAR_MAX_BYTES = 10 * 1024 * 1024;
 const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
 
 const AVATAR_MIME_TYPES = ['image/jpeg', 'image/png'] as const;
