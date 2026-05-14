@@ -5,7 +5,7 @@
 //
 // Order (top → bottom):
 //   1. Info card: Location
-//   2. Info card: WO# / trade / description / NTE / notes
+//   2. Info card: Job# / trade / description / NTE / notes
 //   3. SLA banner row (only when urgency suggests a tight clock —
 //      'emergency' or 'priority')
 //   4. Info card: Emergency SLA (only when urgency === 'emergency')

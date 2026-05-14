@@ -103,7 +103,7 @@ export function InfoCardWO({
   return (
     <InfoCardShell timestamp={timestamp}>
       <Text style={styles.infoCardLine}>
-        <Text style={styles.infoCardTitle}>🗒 WO# {shortId}</Text>
+        <Text style={styles.infoCardTitle}>🗒 Job# {shortId}</Text>
       </Text>
       <Text style={styles.infoCardLine}>
         🗒 {trade}

@@ -18,7 +18,7 @@ type Props = {
 };
 
 // Row layout (top → bottom in the content column):
-//   1. Title (bold)   — "WO# {shortId}". Trade lives on the Job Chat header,
+//   1. Title (bold)   — "Job# {shortId}". Trade lives on the Job Chat header,
 //                       not here, so the title stays scannable.
 //   2. Status         — colored timing line. ETA / "Today, 4:00 PM" /
 //                       "Completed" / etc. No distance suffix.
@@ -54,14 +54,14 @@ export function JobRow({ job, onPress }: Props) {
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Work order ${shortId}, ${status ?? 'no status'}, ${distanceLabel}`}
+      accessibilityLabel={`Job ${shortId}, ${status ?? 'no status'}, ${distanceLabel}`}
     >
       <JobAvatar dotVariant={meta.dotVariant} />
 
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
           {/* TODO: human-readable short job ID — pending Ryan comment */}
-          WO# {shortId}
+          Job# {shortId}
         </Text>
         {status && (
           <Text

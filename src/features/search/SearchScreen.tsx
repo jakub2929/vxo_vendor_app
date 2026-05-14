@@ -127,7 +127,7 @@ export function SearchScreen() {
           {showHint && (
             <EmptyMessage
               title="Type to search"
-              body="Search across your jobs and messages. WO#, address, trade, client name, or any word from a chat."
+              body="Search across your jobs and messages. Job#, address, trade, client name, or any word from a chat."
             />
           )}
 
@@ -143,7 +143,7 @@ export function SearchScreen() {
           {showNoResults && (
             <EmptyMessage
               title="Nothing matches that"
-              body={`Try a different WO#, address, or message text. We searched for "${trimmed}".`}
+              body={`Try a different Job#, address, or message text. We searched for "${trimmed}".`}
             />
           )}
 
@@ -203,10 +203,10 @@ function JobResultRow({ job, onPress }: { job: Job; onPress: () => void }) {
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Work order ${shortId} ${trade}`}
+      accessibilityLabel={`Job ${shortId} ${trade}`}
     >
       <Text style={styles.rowTitle} numberOfLines={1}>
-        WO# {shortId} — {trade}
+        Job# {shortId} — {trade}
       </Text>
       {subtitleParts.length > 0 && (
         <Text style={styles.rowSubtitle} numberOfLines={1}>
@@ -236,14 +236,14 @@ function MessageResultRow({
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Message in work order ${shortId} ${trade}`}
+      accessibilityLabel={`Message in job ${shortId} ${trade}`}
     >
       <Text style={styles.rowTitle} numberOfLines={2}>
         {snippet}
       </Text>
       <View style={styles.messageMetaRow}>
         <Text style={styles.rowSubtitle} numberOfLines={1}>
-          WO# {shortId} · {trade}
+          Job# {shortId} · {trade}
         </Text>
         {timestamp.length > 0 && (
           <Text style={styles.rowTimestamp}>{timestamp}</Text>

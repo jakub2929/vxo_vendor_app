@@ -13,6 +13,70 @@ type Job = Database['public']['Tables']['jobs']['Row'];
 
 export const MOCK_VENDOR_ID = 'a0000000-0000-4000-8000-000000000001';
 
+// PM (project manager) mock data, keyed by pm_id. Each mockJob has a pm_id FK
+// into this map; the PM contact card screen looks the job's PM up here.
+//
+// TODO: real `project_managers` table + Supabase join pending Ryan's admin
+// panel work. When that ships, replace this map with a query that selects
+// jobs.pm_id → project_managers.* and the PM card will keep working with no
+// UI churn.
+export type MockPM = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  jobs_completed: number;
+  member_since: string;
+  contact_subtitle: string;
+  avatar_url: string | null;
+  // Opaque secondary count rendered next to email in the PM card per Figma
+  // 4:10064. Source unknown (teams? responses?) — pending Ryan clarification.
+  email_secondary_count: number;
+};
+
+const PM_TYLER = 'b0000000-0000-4000-8000-000000000001';
+const PM_RYAN = 'b0000000-0000-4000-8000-000000000002';
+const PM_MARIA = 'b0000000-0000-4000-8000-000000000003';
+
+export const mockPMs: Record<string, MockPM> = {
+  [PM_TYLER]: {
+    id: PM_TYLER,
+    name: 'Tyler Stack',
+    phone: '+1-300-555-0136',
+    email: 'tstack@vxoservices.com',
+    jobs_completed: 269,
+    member_since: 'December 12, 2024',
+    contact_subtitle: 'Always available, just contact me 😊',
+    avatar_url: null,
+    email_secondary_count: 8,
+  },
+  [PM_RYAN]: {
+    id: PM_RYAN,
+    name: 'Ryan Porcaro',
+    phone: '+1-300-555-0142',
+    email: 'rporcaro@vxoservices.com',
+    jobs_completed: 412,
+    member_since: 'March 4, 2024',
+    contact_subtitle: 'Ping me anytime, day or night',
+    avatar_url: null,
+    email_secondary_count: 12,
+  },
+  [PM_MARIA]: {
+    id: PM_MARIA,
+    name: 'Maria Alvarez',
+    phone: '+1-300-555-0179',
+    email: 'malvarez@vxoservices.com',
+    jobs_completed: 187,
+    member_since: 'August 21, 2025',
+    contact_subtitle: 'Happy to help — text first, please',
+    avatar_url: null,
+    email_secondary_count: 5,
+  },
+};
+
+const PM_ROTATION = [PM_TYLER, PM_RYAN, PM_MARIA];
+const pmFor = (i: number) => PM_ROTATION[i % PM_ROTATION.length];
+
 export const mockJobs: Job[] = [
   {
     id: 'a3f8c2d1-0001-4000-8000-000000000001',
@@ -248,3 +312,9 @@ export const mockJobs: Job[] = [
     updated_at: '2026-05-02T17:30:00Z',
   },
 ];
+
+// Assign a PM to each mock job by rotating through PM_ROTATION so different
+// jobs surface different PMs. Real schema will populate jobs.pm_id directly.
+mockJobs.forEach((job, index) => {
+  job.pm_id = pmFor(index);
+});

@@ -1,7 +1,7 @@
 // Job Chat detail screen (Figma node 4:10092). Mounts at /job/[id].
 //
 // Composition (top → bottom):
-//   - JobChatHeader (gradient, back arrow, "WO# <shortId>", call, more)
+//   - JobChatHeader (gradient, back arrow, "Job# <shortId>", call, more)
 //   - FlatList of TimelineItems (info cards → bubbles → action row)
 //   - JobChatComposer (sticky, KeyboardAvoidingView padded)
 //
@@ -287,8 +287,8 @@ export function JobChatScreen({ jobId }: Props) {
   };
 
   const title = job
-    ? `WO# ${job.id.slice(0, 8).toUpperCase()}`
-    : 'WO#';
+    ? `Job# ${job.id.slice(0, 8).toUpperCase()}`
+    : 'Job#';
 
   const showFallback =
     !jobLoading && !messagesLoading && job && messages.length === 0 &&
@@ -302,7 +302,9 @@ export function JobChatScreen({ jobId }: Props) {
         title={title}
         onBack={handleBack}
         onCallPress={() => {
-          // TODO: deep-link to phone with client number
+          // Open the PM contact card. The PM (project manager) is the contact
+          // for this ticket — clients are never surfaced as a call target.
+          router.push(`/job/${jobId}/pm-contact`);
         }}
         onMorePress={() => setPopoverOpen(true)}
       />
