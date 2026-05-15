@@ -11,6 +11,7 @@ import { ChatsHeader } from './ChatsHeader';
 import { ChatsTabStrip, type ChatsTab } from './ChatsTabStrip';
 import { JobsListBody } from './JobsListBody';
 import { MoreMenu } from './MoreMenu';
+import { PendingStatusBanner } from './PendingStatusBanner';
 import { useJobsList } from './useJobsList';
 
 // "Jobs" tab body has two states:
@@ -60,18 +61,18 @@ export function ChatsScreen() {
           }
         />
         {activeTab === 'chats' ? (
-          <JobsListBody
-            vendorId={vendor?.id}
-            emptyState={<JobsWelcome />}
-            onRowPress={(jobId) => {
-              router.push(`/job/${jobId}`);
-            }}
-            onFabPress={() => {
-              // TODO: FAB destination — Figma shows a chat icon but no
-              // prototype link. Likely "compose support message" or
-              // "active conversations" once that flow is wired.
-            }}
-          />
+          <>
+            {vendor?.status === 'pending' && <PendingStatusBanner />}
+            <JobsListBody
+              vendorId={vendor?.id}
+              emptyState={
+                <JobsWelcome pending={vendor?.status === 'pending'} />
+              }
+              onRowPress={(jobId) => {
+                router.push(`/job/${jobId}`);
+              }}
+            />
+          </>
         ) : (
           <HomeTab vendorId={vendor?.id} />
         )}
@@ -88,24 +89,28 @@ export function ChatsScreen() {
   );
 }
 
-function JobsWelcome() {
+function JobsWelcome({ pending = false }: { pending?: boolean }) {
   return (
     <View style={styles.bodyContainer}>
       <View style={styles.bodyInner}>
         <View style={styles.titleBlock}>
           <Text style={styles.title}>Welcome! 👋</Text>
           <Text style={styles.subtitle}>
-            VXO AI connects you with Local Companies and Homeowners who need your Help!
+            {pending
+              ? "No jobs yet — they'll appear here once your account is approved."
+              : 'VXO AI connects you with Local Companies and Homeowners who need your Help!'}
           </Text>
         </View>
-        <Pressable
-          onPress={() => console.log('[ChatsScreen] accept first work order')}
-          style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Accept First your first Work Order"
-        >
-          <Text style={styles.ctaText}>Accept First your first Work Order</Text>
-        </Pressable>
+        {!pending && (
+          <Pressable
+            onPress={() => console.log('[ChatsScreen] accept first work order')}
+            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Accept First your first Work Order"
+          >
+            <Text style={styles.ctaText}>Accept First your first Work Order</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );

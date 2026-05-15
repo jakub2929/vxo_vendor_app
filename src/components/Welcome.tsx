@@ -2,7 +2,6 @@ import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@/theme';
 import { StickerCollage } from './StickerCollage';
-import { PaginationDots } from './PaginationDots';
 import { PrimaryButton } from './PrimaryButton';
 
 const FRAME_WIDTH = 428;
@@ -30,12 +29,14 @@ export function Welcome({ onGetStarted }: Props) {
             Welcome to VXO
           </Text>
           <Text allowFontScaling={false} style={styles.subtitle}>
-            The best messenger and chat app of the century to bring you more
-            business.
+            Receive jobs, chat with clients, get paid.
           </Text>
         </View>
 
-        <PaginationDots total={3} active={0} />
+        {/* TODO: PaginationDots removed per stakeholder feedback — Figma
+            originally implied a 3-slide carousel that was never built.
+            Restore <PaginationDots total={3} active={0} /> here if/when the
+            onboarding carousel ships. */}
 
         <PrimaryButton
           label="Get Started"

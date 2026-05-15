@@ -14,6 +14,7 @@
 // before any upload.
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -50,7 +51,7 @@ import {
   shortReasonFor,
   UploadError,
 } from '@/lib/uploadError';
-import { clearVendorCache } from '@/lib/vendorCache';
+import { refreshVendorCache, setCachedVendor } from '@/lib/vendorCache';
 import {
   uploadVendorAvatar,
   uploadVendorDocument,
@@ -92,9 +93,27 @@ type Props = {
   onBack?: () => void;
 };
 
+// Delay between rendering the success state and replacing the route to
+// /(tabs). Long enough for the vendor to read the confirmation, short enough
+// that nobody starts wondering whether the app is stuck.
+const SUCCESS_HOLD_MS = 3000;
+
 export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }: Props) {
+  const router = useRouter();
   const [submitted, setSubmitted] = useState(initiallySubmitted);
   const [submitting, setSubmitting] = useState(false);
+  // Track the auto-advance timer so we can clean it up if the component
+  // unmounts (vendor backgrounds the app, or AuthGate yanks them away).
+  const advanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (advanceTimerRef.current) {
+        clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = null;
+      }
+    };
+  }, []);
   // uploadTarget tracks which slot the picker result will fill; sheetVisible
   // is independent so closing the sheet doesn't drop the target before the
   // picker callback fires.
@@ -340,7 +359,14 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
             x.r.status === 'rejected',
         );
 
-      clearVendorCache();
+      // Seed the cache with the row we just upserted so AuthGate sees
+      // status='pending' immediately on the (tabs) replace below — otherwise
+      // it would re-fetch and, on a slow network, briefly observe a stale
+      // null and bounce the vendor back to fill-profile. Then kick off a
+      // background re-fetch so any patches landed in Step 3 (avatar_path /
+      // coi_path / w9_path) make it into the cache too.
+      setCachedVendor(vendorRow);
+      void refreshVendorCache();
       setSubmitted(true);
 
       if (failures.length > 0) {
@@ -354,6 +380,11 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
           `Some files didn't upload. You can re-try from the Profile screen.\n\n${lines.join('\n')}`,
         );
       }
+
+      advanceTimerRef.current = setTimeout(() => {
+        advanceTimerRef.current = null;
+        router.replace('/(tabs)');
+      }, SUCCESS_HOLD_MS);
     } catch (err) {
       Alert.alert('Submission failed', err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -364,11 +395,10 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
   if (submitted) {
     return (
       <View style={styles.successWrap}>
-        <CheckCircle2 size={120} color={colors.brand.primary} strokeWidth={1.5} />
-        <Text style={styles.successTitle}>Application Submitted</Text>
+        <CheckCircle2 size={120} color={colors.status.success} strokeWidth={1.5} />
+        <Text style={styles.successTitle}>Profile submitted!</Text>
         <Text style={styles.successBody}>
-          Your profile is being reviewed. We&apos;ll notify you when you&apos;re approved and can
-          start receiving jobs.
+          Taking you to your dashboard…
         </Text>
       </View>
     );

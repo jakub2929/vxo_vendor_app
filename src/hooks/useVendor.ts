@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getCachedVendor, getVendor } from '@/lib/vendorCache';
+import {
+  getCachedVendor,
+  getVendor,
+  subscribeVendorChange,
+} from '@/lib/vendorCache';
 import type { Database } from '@/types/database';
 
 type Vendor = Database['public']['Tables']['vendors']['Row'];
@@ -19,6 +23,15 @@ export function useVendor() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Re-render whenever the module-level cache mutates — from FillProfile
+  // submit, the OOO toggle, refreshVendorCache(), or useVendorRealtime
+  // reacting to a Supabase UPDATE.
+  useEffect(() => {
+    return subscribeVendorChange(() => {
+      setVendor(getCachedVendor());
+    });
   }, []);
 
   const refresh = useCallback(async () => {

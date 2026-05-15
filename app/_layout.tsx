@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ToastHost } from '@/components/Toast';
 import { appReadyPromise } from '@/lib/appReady';
 // Side-effect import: registers the foreground notification handler + tap
 // response listener at module load (must run before any component mount).
@@ -112,7 +113,7 @@ function AuthGate() {
         return;
       }
 
-      if (status === 'active' || status === 'out_of_office') {
+      if (status === 'active' || status === 'out_of_office' || status === 'pending') {
         const [pinConfigured, setupCompleted] = await Promise.all([
           isPinConfigured(),
           isSetupCompleted(),
@@ -159,9 +160,10 @@ function AuthGate() {
         return;
       }
 
-      // TODO: separate cleanup — suspended ≠ submitted. Today both route to
-      // the inline "Application Submitted" success state; suspended vendors
-      // should get distinct messaging.
+      // Any other status (e.g. 'suspended', 'rejected'). Falls through to the
+      // FillProfile inline submitted state for now; needs distinct messaging
+      // in a follow-up. Pending used to land here too — it now lands on
+      // (tabs) with PendingStatusBanner per stakeholder feedback.
       if (!onFillProfile) router.replace('/(public)/fill-profile?submitted=1');
     })();
 
@@ -183,6 +185,10 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthGate />
+        {/* ToastHost is a sibling of AuthGate, not nested inside it, so the
+            toast overlays every route group (tabs, public, authed-no-tabs)
+            without re-mounting when AuthGate replaces between them. */}
+        <ToastHost />
       </QueryClientProvider>
     </SafeAreaProvider>
   );

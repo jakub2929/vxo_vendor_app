@@ -6,6 +6,22 @@ type Vendor = Database['public']['Tables']['vendors']['Row'];
 let cachedVendor: Vendor | null = null;
 let inFlight: Promise<Vendor | null> | null = null;
 
+// Module-level subscriber list. useVendor (and any other consumer) registers
+// here so it re-renders when the cache is mutated by realtime / form submit
+// without forcing a remount. Mirrors the lock-change subscriber pattern in
+// pinStore.ts.
+type Listener = () => void;
+const listeners = new Set<Listener>();
+function notify() {
+  for (const l of listeners) l();
+}
+export function subscribeVendorChange(fn: Listener): () => void {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
 export async function getVendor(forceRefresh = false): Promise<Vendor | null> {
   if (cachedVendor && !forceRefresh) return cachedVendor;
   if (inFlight) return inFlight;
@@ -26,6 +42,7 @@ export async function getVendor(forceRefresh = false): Promise<Vendor | null> {
         return null;
       }
       cachedVendor = data;
+      notify();
       return data;
     } finally {
       inFlight = null;
@@ -37,6 +54,7 @@ export async function getVendor(forceRefresh = false): Promise<Vendor | null> {
 
 export function clearVendorCache() {
   cachedVendor = null;
+  notify();
 }
 
 export function getCachedVendor(): Vendor | null {
@@ -47,4 +65,12 @@ export function getCachedVendor(): Vendor | null {
 // roundtripping through Supabase.
 export function setCachedVendor(vendor: Vendor | null) {
   cachedVendor = vendor;
+  notify();
+}
+
+// Force a re-fetch and broadcast. Used after FillProfile submit (so AuthGate
+// sees the new `pending` status instead of stale null) and from
+// useVendorRealtime (so a remote UPDATE flows through to the banner).
+export async function refreshVendorCache(): Promise<Vendor | null> {
+  return getVendor(true);
 }
