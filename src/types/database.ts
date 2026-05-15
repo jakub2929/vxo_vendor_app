@@ -54,6 +54,11 @@ export type Database = {
         ]
       }
       invoices: {
+        // The four *_at engagement timestamps (overdue_at, paid_at, sent_at,
+        // viewed_at) were added in supabase/schema/add-invoice-extensions.sql.
+        // valid_until was added in supabase/schema/add-quote-extensions.sql
+        // (used when kind='quote'). Manual addition pending the next
+        // `supabase gen types typescript` run.
         Row: {
           created_at: string | null
           description: string | null
@@ -64,11 +69,16 @@ export type Database = {
           labor: number | null
           line_items: Json | null
           notes: string | null
+          overdue_at: string | null
+          paid_at: string | null
           parts: number | null
+          sent_at: string | null
           status: string
           total: number | null
           updated_at: string | null
+          valid_until: string | null
           vendor_id: string | null
+          viewed_at: string | null
         }
         Insert: {
           created_at?: string | null
@@ -80,11 +90,16 @@ export type Database = {
           labor?: number | null
           line_items?: Json | null
           notes?: string | null
+          overdue_at?: string | null
+          paid_at?: string | null
           parts?: number | null
+          sent_at?: string | null
           status?: string
           total?: number | null
           updated_at?: string | null
+          valid_until?: string | null
           vendor_id?: string | null
+          viewed_at?: string | null
         }
         Update: {
           created_at?: string | null
@@ -96,11 +111,16 @@ export type Database = {
           labor?: number | null
           line_items?: Json | null
           notes?: string | null
+          overdue_at?: string | null
+          paid_at?: string | null
           parts?: number | null
+          sent_at?: string | null
           status?: string
           total?: number | null
           updated_at?: string | null
+          valid_until?: string | null
           vendor_id?: string | null
+          viewed_at?: string | null
         }
         Relationships: [
           {
@@ -115,6 +135,43 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_items: {
+        // Added in supabase/schema/add-invoice-extensions.sql alongside the
+        // send_invoice RPC. Manual entry pending next gen-types run.
+        Row: {
+          amount: number
+          created_at: string | null
+          description: string
+          id: string
+          invoice_id: string
+          sort_order: number
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          description: string
+          id?: string
+          invoice_id: string
+          sort_order?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          description?: string
+          id?: string
+          invoice_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -373,6 +430,19 @@ export type Database = {
       mark_on_site: {
         Args: { p_job_id: string }
         Returns: Database['public']['Tables']['jobs']['Row'][]
+      }
+      send_invoice: {
+        Args: { p_job_id: string; p_items: Json; p_notes?: string | null }
+        Returns: Database['public']['Tables']['invoices']['Row'][]
+      }
+      send_quote: {
+        Args: {
+          p_job_id: string
+          p_items: Json
+          p_notes?: string | null
+          p_expires_in_days?: number
+        }
+        Returns: Database['public']['Tables']['invoices']['Row'][]
       }
     }
     Enums: {

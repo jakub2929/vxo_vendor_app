@@ -19,6 +19,8 @@
 import type {
   ActionCardSpec,
   ChatMessage,
+  Invoice,
+  InvoiceItem,
   Job,
   TimelineItem,
 } from './types';
@@ -147,6 +149,7 @@ function onSiteMarkerText(
 export function buildTimeline(
   job: Job,
   messages: ChatMessage[],
+  invoiceCards: { invoice: Invoice; items: InvoiceItem[] }[] = [],
 ): TimelineItem[] {
   const items: TimelineItem[] = [];
 
@@ -190,22 +193,41 @@ export function buildTimeline(
     });
   }
 
-  // --- Messages with date separators + on-site / check-out markers ---
-  // Sort defensively in case the input isn't ordered.
-  const sorted = [...messages].sort((a, b) =>
-    (a.created_at ?? '').localeCompare(b.created_at ?? ''),
-  );
+  // --- Messages + invoice cards with date separators + on-site / check-out markers ---
+  // Unified chronological event stream so invoice cards interleave with
+  // bubbles by timestamp (sent_at preferred, falling back to created_at).
+  type Event =
+    | { iso: string; kind: 'message'; message: ChatMessage }
+    | {
+        iso: string;
+        kind: 'invoice';
+        invoice: Invoice;
+        items: InvoiceItem[];
+      };
 
-  // Mark whether we've already inserted the synthetic markers, so they
-  // appear once at the right position relative to the message timeline.
+  const events: Event[] = [
+    ...messages.map((m) => ({
+      iso: m.created_at ?? '',
+      kind: 'message' as const,
+      message: m,
+    })),
+    ...invoiceCards.map((c) => ({
+      iso:
+        c.invoice.sent_at ??
+        c.invoice.created_at ??
+        new Date().toISOString(),
+      kind: 'invoice' as const,
+      invoice: c.invoice,
+      items: c.items,
+    })),
+  ].sort((a, b) => a.iso.localeCompare(b.iso));
+
   let checkinInserted = !job.checkin_time;
   let checkoutInserted = !job.checkout_time;
   let lastDayKey = '';
 
-  // Always lead with a "Today" / day-of-first-message separator (matches
-  // the Figma "Today" pill near the top of the bubbles area).
-  const firstMessageIso = sorted[0]?.created_at;
-  const leadIso = firstMessageIso ?? job.created_at ?? new Date().toISOString();
+  const firstEventIso = events[0]?.iso;
+  const leadIso = firstEventIso ?? job.created_at ?? new Date().toISOString();
   items.push({
     kind: 'date_separator',
     id: `sep-${calendarDayKey(leadIso)}`,
@@ -213,13 +235,14 @@ export function buildTimeline(
   });
   lastDayKey = calendarDayKey(leadIso);
 
-  for (const m of sorted) {
-    const dayKey = calendarDayKey(m.created_at);
+  for (const e of events) {
+    const eventId = e.kind === 'message' ? e.message.id : e.invoice.id;
+    const dayKey = calendarDayKey(e.iso);
     if (dayKey && dayKey !== lastDayKey) {
       items.push({
         kind: 'date_separator',
-        id: `sep-${dayKey}-${m.id}`,
-        label: dateLabel(m.created_at),
+        id: `sep-${dayKey}-${eventId}`,
+        label: dateLabel(e.iso),
       });
       lastDayKey = dayKey;
     }
@@ -227,7 +250,7 @@ export function buildTimeline(
     if (
       !checkinInserted &&
       job.checkin_time &&
-      m.created_at >= job.checkin_time
+      e.iso >= job.checkin_time
     ) {
       items.push({
         kind: 'system_marker',
@@ -240,7 +263,7 @@ export function buildTimeline(
     if (
       !checkoutInserted &&
       job.checkout_time &&
-      m.created_at >= job.checkout_time
+      e.iso >= job.checkout_time
     ) {
       items.push({
         kind: 'system_marker',
@@ -250,7 +273,16 @@ export function buildTimeline(
       checkoutInserted = true;
     }
 
-    items.push({ kind: 'bubble', id: `bubble-${m.id}`, message: m });
+    if (e.kind === 'message') {
+      items.push({ kind: 'bubble', id: `bubble-${e.message.id}`, message: e.message });
+    } else {
+      items.push({
+        kind: 'invoice_card',
+        id: `invoice-${e.invoice.id}`,
+        invoice: e.invoice,
+        items: e.items,
+      });
+    }
   }
 
   // Markers that fall AFTER the last message (e.g. job is on_site with no

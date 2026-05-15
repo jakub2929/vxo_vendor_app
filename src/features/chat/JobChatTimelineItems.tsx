@@ -12,6 +12,8 @@ import { colors, shadows, typography } from '@/theme';
 import type {
   ActionCardSpec,
   ChatMessage,
+  Invoice,
+  InvoiceItem,
   TimelineItem,
 } from './types';
 
@@ -375,6 +377,152 @@ export function ActionCardRow({
   );
 }
 
+// ---------- Invoice / Quote card ----------
+//
+// One card per invoice OR quote (both stored in the invoices table; kind
+// branches presentation). Card always shows everything (total, status,
+// items, notes, timestamp) — no tap-to-expand or separate detail screen.
+
+type BadgeStyle = { label: string; bg: string; fg: string };
+
+const INVOICE_STATUS_BADGE: Record<string, BadgeStyle> = {
+  draft:     { label: 'Draft',     bg: '#E0E0E0', fg: '#424242' },
+  sent:      { label: 'Sent',      bg: '#E3F2FD', fg: '#1565C0' },
+  viewed:    { label: 'Viewed',    bg: '#E3F2FD', fg: '#1565C0' },
+  approved:  { label: 'Approved',  bg: '#E8F5E9', fg: '#2E7D32' },
+  paid:      { label: 'Paid ✓',    bg: '#E8F5E9', fg: '#2E7D32' },
+  overdue:   { label: 'Overdue',   bg: '#FFEBEE', fg: '#C62828' },
+  rejected:  { label: 'Declined',  bg: '#FFEBEE', fg: '#C62828' },
+  cancelled: { label: 'Cancelled', bg: '#E0E0E0', fg: '#424242' },
+};
+
+// Quote uses yellow/orange "Pending" while waiting on the client; green
+// "Accepted ✓" after they accept; gray "Expired" once valid_until passes.
+const QUOTE_STATUS_BADGE: Record<string, BadgeStyle> = {
+  draft:     { label: 'Draft',     bg: '#E0E0E0', fg: '#424242' },
+  sent:      { label: 'Pending',   bg: '#FFF3E0', fg: '#E65100' },
+  viewed:    { label: 'Pending',   bg: '#FFF3E0', fg: '#E65100' },
+  accepted:  { label: 'Accepted ✓', bg: '#E8F5E9', fg: '#2E7D32' },
+  approved:  { label: 'Accepted ✓', bg: '#E8F5E9', fg: '#2E7D32' },
+  rejected:  { label: 'Declined',  bg: '#FFEBEE', fg: '#C62828' },
+  expired:   { label: 'Expired',   bg: '#E0E0E0', fg: '#424242' },
+  cancelled: { label: 'Cancelled', bg: '#E0E0E0', fg: '#424242' },
+};
+
+function formatMoney(n: number): string {
+  return `$${n.toFixed(2)}`;
+}
+
+function invoiceTimestamp(invoice: Invoice): string {
+  const iso = invoice.sent_at ?? invoice.created_at;
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  let hours = d.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}${ampm}`;
+}
+
+function formatValidDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+// For quotes, derive effective state: if valid_until is in the past and the
+// stored status is still 'sent' or 'viewed', treat as 'expired' for badge +
+// expiry-line presentation. Alfred can also set status='expired' explicitly;
+// either path renders the same.
+function quoteIsExpired(invoice: Invoice): boolean {
+  if (!invoice.valid_until) return false;
+  return new Date(invoice.valid_until).getTime() < Date.now();
+}
+
+export function InvoiceCard({
+  invoice,
+  items,
+}: {
+  invoice: Invoice;
+  items: InvoiceItem[];
+}) {
+  const isQuote = invoice.kind === 'quote';
+
+  let effectiveStatus = invoice.status;
+  if (
+    isQuote &&
+    quoteIsExpired(invoice) &&
+    (effectiveStatus === 'sent' || effectiveStatus === 'viewed')
+  ) {
+    effectiveStatus = 'expired';
+  }
+
+  const badgeTable = isQuote ? QUOTE_STATUS_BADGE : INVOICE_STATUS_BADGE;
+  const badge =
+    badgeTable[effectiveStatus] ?? badgeTable.sent ?? INVOICE_STATUS_BADGE.sent;
+
+  const total = invoice.total ?? 0;
+  const stamp = invoiceTimestamp(invoice);
+  const itemCount = items.length;
+
+  return (
+    <View style={styles.bubbleRowLeft}>
+      <View style={[styles.bubble, styles.bubbleIncoming, styles.invoiceCard]}>
+        <View style={styles.invoiceHeader}>
+          <Text style={styles.invoiceTotal}>{formatMoney(total)}</Text>
+          <View style={[styles.invoiceBadge, { backgroundColor: badge.bg }]}>
+            <Text style={[styles.invoiceBadgeText, { color: badge.fg }]}>
+              {badge.label}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.invoiceSubtitle}>
+          {isQuote ? 'Quote' : 'Invoice'} • {itemCount}{' '}
+          {itemCount === 1 ? 'item' : 'items'}
+        </Text>
+
+        <View style={styles.invoiceDivider} />
+
+        <View style={styles.invoiceItemList}>
+          {items.map((it) => (
+            <View key={it.id} style={styles.invoiceItemRow}>
+              <Text style={styles.invoiceItemDesc} numberOfLines={2}>
+                {it.description}
+              </Text>
+              <Text style={styles.invoiceItemAmount}>
+                {formatMoney(it.amount)}
+              </Text>
+            </View>
+          ))}
+        </View>
+
+        {isQuote && invoice.valid_until ? (
+          <Text style={styles.invoiceExpiry}>
+            {effectiveStatus === 'expired'
+              ? `Expired ${formatValidDate(invoice.valid_until)}`
+              : `Valid until ${formatValidDate(invoice.valid_until)}`}
+          </Text>
+        ) : null}
+
+        {invoice.notes ? (
+          <>
+            <View style={styles.invoiceDivider} />
+            <Text style={styles.invoiceNotes}>{invoice.notes}</Text>
+          </>
+        ) : null}
+
+        {stamp ? <Text style={styles.bubbleTimestampLeft}>{stamp}</Text> : null}
+      </View>
+    </View>
+  );
+}
+
 // ---------- Top-level switch ----------
 
 export function renderTimelineItem(
@@ -414,6 +562,8 @@ export function renderTimelineItem(
       return <SystemMarker text={item.text} />;
     case 'action_card_row':
       return <ActionCardRow actions={item.actions} onAction={onAction} />;
+    case 'invoice_card':
+      return <InvoiceCard invoice={item.invoice} items={item.items} />;
     case 'footer_marker':
       return <FooterMarker text={item.text} tone={item.tone} />;
   }
@@ -589,6 +739,76 @@ const styles = StyleSheet.create({
   footerMarkerText: {
     ...typography.bodyBold,
     textAlign: 'center',
+  },
+
+  // Invoice card
+  invoiceCard: {
+    width: '90%',
+    gap: 8,
+  },
+  invoiceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  invoiceTotal: {
+    fontFamily: 'Urbanist-Bold',
+    fontWeight: '700',
+    fontSize: 24,
+    lineHeight: 28,
+    color: colors.text.primary,
+  },
+  invoiceBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  invoiceBadgeText: {
+    fontFamily: 'Urbanist-Bold',
+    fontWeight: '700',
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0.2,
+  },
+  invoiceSubtitle: {
+    ...typography.bodySmall,
+    color: colors.text.secondary,
+  },
+  invoiceDivider: {
+    height: 1,
+    backgroundColor: colors.divider.soft,
+    marginVertical: 4,
+  },
+  invoiceItemList: {
+    gap: 6,
+  },
+  invoiceItemRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  invoiceItemDesc: {
+    ...typography.bodySmall,
+    color: colors.text.primary,
+    flex: 1,
+  },
+  invoiceItemAmount: {
+    ...typography.bodyBold,
+    color: colors.text.primary,
+    minWidth: 80,
+    textAlign: 'right',
+  },
+  invoiceNotes: {
+    ...typography.bodySmall,
+    color: colors.text.secondary,
+    fontStyle: 'italic',
+  },
+  invoiceExpiry: {
+    ...typography.bodySmall,
+    color: colors.text.secondary,
+    marginTop: 4,
   },
 
   // Action cards

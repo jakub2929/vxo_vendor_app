@@ -13,11 +13,14 @@ import {
   appendMockMessage,
   getMockJob,
   getMockMessages,
+  listMockInvoicesWithItemsForJob,
 } from '@/lib/mockChatState';
 import { supabase } from '@/lib/supabase';
 import type {
   ChatMessage,
   ChatSender,
+  Invoice,
+  InvoiceItem,
   Job,
 } from '@/features/chat/types';
 
@@ -62,6 +65,43 @@ export function useJobMessages(jobId: string | null | undefined) {
         content: row.content,
         created_at: row.created_at ?? '',
       }));
+    },
+  });
+}
+
+// Invoice + its line items as a unit. The timeline renders one card per
+// invoice; fetching them together keeps the chat read path to a single
+// embedded select (or one mock-store call).
+export type InvoiceWithItems = { invoice: Invoice; items: InvoiceItem[] };
+
+export function useJobInvoices(jobId: string | null | undefined) {
+  return useQuery<InvoiceWithItems[]>({
+    queryKey: ['chat', 'invoices', jobId],
+    enabled: !!jobId,
+    queryFn: async () => {
+      if (USE_MOCKS) {
+        return listMockInvoicesWithItemsForJob(jobId as string);
+      }
+      // Embedded select via the invoice_items_invoice_id_fkey relationship.
+      // Returns rows shaped { ...invoice, invoice_items: InvoiceItem[] }.
+      const { data, error } = await supabase
+        .from('invoices')
+        .select('*, invoice_items(*)')
+        .eq('job_id', jobId as string)
+        .order('sent_at', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      return (data ?? []).map((row) => {
+        // Strip the embedded relation off the invoice shape so the rest of
+        // the code sees a clean Invoice.
+        const { invoice_items, ...invoice } = row as Invoice & {
+          invoice_items: InvoiceItem[];
+        };
+        const items = [...(invoice_items ?? [])].sort(
+          (a, b) => a.sort_order - b.sort_order,
+        );
+        return { invoice: invoice as Invoice, items };
+      });
     },
   });
 }

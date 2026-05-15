@@ -32,7 +32,56 @@ export default function PmContactRoute() {
   if (!id) return <Redirect href="/(tabs)" />;
   const job = getMockJob(id);
   const pm = job?.pm_id ? mockPMs[job.pm_id] : null;
-  if (!job || !pm) return <Redirect href={`/job/${id}`} />;
+
+  // Empty state when PM data is unavailable.
+  //
+  // Previously this branch returned <Redirect href={`/job/${id}`} />, which
+  // expo-router resolves as router.replace. That replaces the TOP of the
+  // stack — but the original JobChatScreen at the bottom of the stack stays
+  // mounted, so the post-redirect stack contains two JobChatScreen instances
+  // with the same jobId, which causes useJobChatRealtime to attempt two
+  // identically-named subscribes and supabase-js to throw "cannot add
+  // postgres_changes callbacks for realtime:chat:{id} after subscribe()".
+  //
+  // Rendering an empty state instead of redirecting prevents the duplicate
+  // mount. router.back() (via the header arrow) returns to the existing
+  // JobChatScreen on the stack.
+  //
+  // TODO: real-mode PM lookup. getMockJob() only reads the in-memory mock
+  // store; for real-DB jobs we need either a project_managers table + join
+  // on jobs.pm_id, or a useQuery hook that hits Supabase. Seed jobs also
+  // don't populate pm_id today, so this empty state will show for every
+  // real-data job until both gaps are filled.
+  if (!job || !pm) {
+    return (
+      <View style={styles.root}>
+        <LinearGradient
+          colors={colors.brand.headerGradient}
+          start={GRADIENT_START}
+          end={GRADIENT_END}
+          style={[styles.header, { paddingTop: insets.top + 12 }]}
+        >
+          <View style={styles.headerRow}>
+            <Pressable
+              hitSlop={12}
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <ArrowLeft color="#FFFFFF" size={28} />
+            </Pressable>
+          </View>
+        </LinearGradient>
+        <View style={[styles.body, styles.emptyBody]}>
+          <Text style={styles.emptyTitle}>PM info not available</Text>
+          <Text style={styles.emptyBodyText}>
+            Project manager contact details aren&apos;t set up for this job
+            yet. Use the chat thread to reach the dispatcher.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   const dialPm = () => {
     const tel = `tel:${pm.phone.replace(/[^+\d]/g, '')}`;
@@ -166,6 +215,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 36,
+  },
+  emptyBody: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  emptyTitle: {
+    ...typography.h3,
+    color: colors.text.primary,
+    textAlign: 'center',
+  },
+  emptyBodyText: {
+    fontFamily: 'Urbanist-Medium',
+    fontWeight: '500',
+    fontSize: 16,
+    lineHeight: 22.4,
+    letterSpacing: 0.2,
+    color: colors.text.secondary,
+    textAlign: 'center',
+    maxWidth: 320,
   },
   identity: {
     alignItems: 'center',

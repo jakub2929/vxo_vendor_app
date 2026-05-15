@@ -11,6 +11,8 @@
 import type { Database } from '@/types/database';
 
 export type Job = Database['public']['Tables']['jobs']['Row'];
+export type Invoice = Database['public']['Tables']['invoices']['Row'];
+export type InvoiceItem = Database['public']['Tables']['invoice_items']['Row'];
 
 // Sender values used by the renderer. The DB column is `string` (unconstrained),
 // so this is a client-side narrowing — cast at the data-layer boundary.
@@ -71,4 +73,10 @@ export type TimelineItem =
   | { kind: 'bubble'; id: string; message: ChatMessage }
   | { kind: 'system_marker'; id: string; text: string }
   | { kind: 'action_card_row'; id: string; actions: ActionCardSpec[] }
+  | {
+      kind: 'invoice_card';
+      id: string;
+      invoice: Invoice;
+      items: InvoiceItem[];
+    }
   | { kind: 'footer_marker'; id: string; text: string; tone: 'success' | 'danger' };

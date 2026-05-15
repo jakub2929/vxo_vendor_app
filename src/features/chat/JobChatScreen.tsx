@@ -15,6 +15,7 @@ import {
   Alert,
   FlatList,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   StyleSheet,
   Text,
@@ -45,9 +46,10 @@ import { JobChatComposer } from './JobChatComposer';
 import { JobChatHeader } from './JobChatHeader';
 import { JobChatHeaderPopover } from './JobChatHeaderPopover';
 import { renderTimelineItem } from './JobChatTimelineItems';
-import type { ActionCardSpec, TimelineItem } from './types';
+import type { ActionCardSpec, Job, TimelineItem } from './types';
 import {
   useJob,
+  useJobInvoices,
   useJobMessages,
   useSendMessage,
 } from './useJobChat';
@@ -57,10 +59,34 @@ type Props = {
   jobId: string;
 };
 
+// Hand off navigation to the OS Maps app. Prefer GPS coordinates when the
+// job has them; fall back to the address string. Silently no-ops when both
+// are missing. Linking rejection is swallowed because the caller has
+// already committed to its own success path (status transition, etc).
+function openMapsForJob(job: Job) {
+  const url =
+    job.location_lat != null && job.location_lng != null
+      ? Platform.select({
+          ios: `maps:?daddr=${job.location_lat},${job.location_lng}`,
+          android: `geo:${job.location_lat},${job.location_lng}?q=${job.location_lat},${job.location_lng}`,
+        })
+      : job.address
+        ? Platform.select({
+            ios: `maps:?daddr=${encodeURIComponent(job.address)}`,
+            android: `geo:0,0?q=${encodeURIComponent(job.address)}`,
+          })
+        : null;
+
+  if (url) {
+    Linking.openURL(url).catch(() => {});
+  }
+}
+
 export function JobChatScreen({ jobId }: Props) {
   const { data: job, isLoading: jobLoading } = useJob(jobId);
   const { data: messages = [], isLoading: messagesLoading } =
     useJobMessages(jobId);
+  const { data: invoiceCards = [] } = useJobInvoices(jobId);
   const sendMessage = useSendMessage(jobId);
   useJobChatRealtime(jobId);
   const { data: vendorCoords } = useVendorLocation();
@@ -84,7 +110,7 @@ export function JobChatScreen({ jobId }: Props) {
 
   const timeline = useMemo<TimelineItem[]>(() => {
     if (!job) return [];
-    const base = buildTimeline(job, messages);
+    const base = buildTimeline(job, messages, invoiceCards);
     // Post-process: inject distance into the Location info card, and rewrite
     // the SLA banner text to include miles when GPS is available. Both
     // pieces of UI need the vendor coords, so we compose them here rather
@@ -103,7 +129,7 @@ export function JobChatScreen({ jobId }: Props) {
       }
       return item;
     });
-  }, [job, messages, distanceMi]);
+  }, [job, messages, invoiceCards, distanceMi]);
 
   const handleBack = () => {
     if (router.canGoBack()) router.back();
@@ -162,8 +188,12 @@ export function JobChatScreen({ jobId }: Props) {
         break;
 
       case 'get_directions':
-        // Button label is "Get Directions" but this is the accepted → en_route
-        // transition. Opening Maps is a separate concern not wired yet.
+        // "Get Directions" is dual-purpose: first tap (status='accepted')
+        // both transitions to en_route AND opens Maps; subsequent taps
+        // while already en_route just re-open Maps. Vendor's real workflow
+        // includes closing/reopening the Maps app mid-route — forcing them
+        // back through a status flow to re-open directions would be
+        // pointless friction.
         if (USE_MOCKS) {
           setMockJobStatus(job.id, 'en_route');
           appendMockMessage(job.id, {
@@ -172,59 +202,39 @@ export function JobChatScreen({ jobId }: Props) {
               'Get Directions. Client has been notified you are on the way. Click here to cancel.',
           });
         } else {
-          const { error } = await supabase.rpc('start_travel', {
-            p_job_id: job.id,
-          });
-          if (error) {
-            Alert.alert("Couldn't start travel", error.message);
-            return;
+          if (job.status === 'accepted') {
+            const { error } = await supabase.rpc('start_travel', {
+              p_job_id: job.id,
+            });
+            if (error) {
+              Alert.alert("Couldn't start travel", error.message);
+              return;
+            }
+            await invalidateAfterTransition();
           }
-          await invalidateAfterTransition();
+          // Re-open Maps regardless of whether this was the first tap or a
+          // re-tap during en_route.
+          openMapsForJob(job);
         }
         break;
 
       case 'invoice_client':
-        if (USE_MOCKS) {
-          appendMockMessage(job.id, {
-            sender: 'vendor',
-            content:
-              'You selected Invoice. If you need to go back to Quote press Here.',
-          });
-        } else {
-          // Coming-soon stub — Invoice builder screen hasn't shipped yet.
-          Alert.alert(
-            'Coming soon',
-            'Invoice builder not yet available. This feature is coming in a future update.',
-          );
-        }
+        // Both modes route to the invoice builder. Builder picks its own
+        // submit path (mock → appendMockInvoice, real → send_invoice RPC).
+        router.push(`/job/${job.id}/invoice`);
         break;
 
       case 'send_quote':
-        if (USE_MOCKS) {
-          appendMockMessage(job.id, {
-            sender: 'vendor',
-            content: 'You selected Quote. The client will see it shortly.',
-          });
-        } else {
-          Alert.alert(
-            'Coming soon',
-            'Quote builder not yet available. This feature is coming in a future update.',
-          );
-        }
+        // Both modes route to the quote builder; builder picks its own
+        // submit path (mock → appendMockQuote, real → send_quote RPC).
+        router.push(`/job/${job.id}/quote`);
         break;
 
       case 'questions':
-        if (USE_MOCKS) {
-          appendMockMessage(job.id, {
-            sender: 'alfred',
-            content: 'We ask 3 quick questions to build an invoice for you.',
-          });
-        } else {
-          Alert.alert(
-            'Coming soon',
-            'Questions / Contact Client flow not yet available. This feature is coming in a future update.',
-          );
-        }
+        // "Questions / Contact Client" routes to the PM contact card —
+        // same destination as the header phone icon. Same in mock + real
+        // so the demo flow exercises the real navigation target.
+        router.push(`/job/${job.id}/pm-contact`);
         break;
 
       case 'view_invoice':
