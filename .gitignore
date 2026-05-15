@@ -49,3 +49,7 @@ assets/figma-refs/.cache/
 # Environment variables
 .env
 .env.local
+
+# Firebase / push notification credentials
+google-services.json
+GoogleService-Info.plist

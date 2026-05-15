@@ -83,6 +83,7 @@ async function registerForPushNotifications(vendorId: string) {
     console.warn('[push] getExpoPushTokenAsync failed:', e);
     return;
   }
+  console.log('[push:debug] Expo push token:', token); // TODO: remove before production
 
   await persistToken(vendorId, token);
 }
