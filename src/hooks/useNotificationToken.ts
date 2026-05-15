@@ -8,13 +8,40 @@ import { useVendor } from '@/hooks/useVendor';
 // Mounts at the authed-tabs root (alongside useVendorLocation). The OS push
 // permission prompt fires the first time a vendor session is available; on
 // denial, the hook degrades silently (no re-prompt, no alert).
+//
+// Also owns the token-rotation listener — Expo tokens can change at runtime
+// (OS update, app reinstall, permission revoke+regrant), and a stale token
+// means lost deliveries until the next cold start. Listener is scoped to the
+// authed lifetime so we never UPDATE with `id=null` on a signed-out device.
 export function useNotificationToken() {
   const { vendor } = useVendor();
 
   useEffect(() => {
     if (!vendor?.id) return;
-    void registerForPushNotifications(vendor.id);
+
+    const vendorId = vendor.id;
+    void registerForPushNotifications(vendorId);
+
+    const subscription = Notifications.addPushTokenListener((event) => {
+      void persistToken(vendorId, event.data);
+    });
+
+    return () => {
+      subscription.remove();
+    };
   }, [vendor?.id]);
+}
+
+async function persistToken(vendorId: string, token: string): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('vendors')
+      .update({ expo_push_token: token })
+      .eq('id', vendorId);
+    if (error) console.error('[push] Token upload failed:', error);
+  } catch (e) {
+    console.error('[push] Token upload threw:', e);
+  }
 }
 
 async function registerForPushNotifications(vendorId: string) {
@@ -57,13 +84,5 @@ async function registerForPushNotifications(vendorId: string) {
     return;
   }
 
-  // Best-effort upload. Failure logs but never crashes or alerts.
-  const { error } = await supabase
-    .from('vendors')
-    .update({ expo_push_token: token })
-    .eq('id', vendorId);
-
-  if (error) {
-    console.error('[push] Token upload failed:', error);
-  }
+  await persistToken(vendorId, token);
 }

@@ -31,6 +31,7 @@ import {
 } from '@/features/chats/jobStatusMeta';
 import { useVendor } from '@/hooks/useVendor';
 import { colors } from '@/theme';
+import { formatJobNumber } from '@/utils/formatters';
 import type { Database } from '@/types/database';
 import {
   MIN_QUERY_LENGTH,
@@ -127,7 +128,7 @@ export function SearchScreen() {
           {showHint && (
             <EmptyMessage
               title="Type to search"
-              body="Search across your jobs and messages. Job#, address, trade, client name, or any word from a chat."
+              body="Search across your jobs and messages. Job number, address, trade, client name, or any word from a chat."
             />
           )}
 
@@ -143,7 +144,7 @@ export function SearchScreen() {
           {showNoResults && (
             <EmptyMessage
               title="Nothing matches that"
-              body={`Try a different Job#, address, or message text. We searched for "${trimmed}".`}
+              body={`Try a different job number, address, or message text. We searched for "${trimmed}".`}
             />
           )}
 
@@ -193,7 +194,7 @@ function useDebounced<T>(value: T, delayMs: number): T {
 }
 
 function JobResultRow({ job, onPress }: { job: Job; onPress: () => void }) {
-  const shortId = job.id.slice(0, 8);
+  const jobNumber = formatJobNumber(job.id);
   const trade = tradeLabel(job.trade);
   const subtitleParts = [job.address, job.client_name].filter(
     (s): s is string => !!s && s.length > 0,
@@ -203,10 +204,10 @@ function JobResultRow({ job, onPress }: { job: Job; onPress: () => void }) {
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Job ${shortId} ${trade}`}
+      accessibilityLabel={`Job ${jobNumber} ${trade}`}
     >
       <Text style={styles.rowTitle} numberOfLines={1}>
-        Job# {shortId} — {trade}
+        {jobNumber} — {trade}
       </Text>
       {subtitleParts.length > 0 && (
         <Text style={styles.rowSubtitle} numberOfLines={1}>
@@ -224,7 +225,7 @@ function MessageResultRow({
   hit: MessageSearchHit;
   onPress: () => void;
 }) {
-  const shortId = hit.job.id.slice(0, 8);
+  const jobNumber = formatJobNumber(hit.job.id);
   const trade = tradeLabel(hit.job.trade);
   const timestamp = formatRowTimestamp(hit.message.created_at);
   const senderLabel = formatSenderLabel(hit.message.sender);
@@ -236,14 +237,14 @@ function MessageResultRow({
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Message in job ${shortId} ${trade}`}
+      accessibilityLabel={`Message in job ${jobNumber} ${trade}`}
     >
       <Text style={styles.rowTitle} numberOfLines={2}>
         {snippet}
       </Text>
       <View style={styles.messageMetaRow}>
         <Text style={styles.rowSubtitle} numberOfLines={1}>
-          Job# {shortId} · {trade}
+          {jobNumber} · {trade}
         </Text>
         {timestamp.length > 0 && (
           <Text style={styles.rowTimestamp}>{timestamp}</Text>

@@ -45,6 +45,7 @@ import { USE_MOCKS } from '@/features/home/useHomeData';
 import { appendMockInvoice } from '@/lib/mockChatState';
 import { supabase } from '@/lib/supabase';
 import { colors, typography } from '@/theme';
+import { formatJobNumber } from '@/utils/formatters';
 
 const GRADIENT_START = { x: 0.913, y: 0.783 };
 const GRADIENT_END = { x: 0.087, y: 0.217 };
@@ -101,7 +102,7 @@ export default function InvoiceBuilderRoute() {
     }
   };
 
-  const shortId = id.slice(0, 8).toUpperCase();
+  const jobNumber = formatJobNumber(id);
 
   return (
     <View style={styles.root}>
@@ -121,7 +122,7 @@ export default function InvoiceBuilderRoute() {
             <ArrowLeft color="#FFFFFF" size={28} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            Invoice for Job# {shortId}
+            Invoice for {jobNumber}
           </Text>
           <View style={styles.headerSpacer} />
         </View>

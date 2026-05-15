@@ -42,8 +42,7 @@ export type ActionCardSpec =
   | { kind: 'get_directions'; highlighted?: boolean }
   | { kind: 'invoice_client' }
   | { kind: 'send_quote' }
-  | { kind: 'questions' }
-  | { kind: 'view_invoice' };
+  | { kind: 'questions' };
 
 export type TimelineItem =
   | { kind: 'date_separator'; id: string; label: string }

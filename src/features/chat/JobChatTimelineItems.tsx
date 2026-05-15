@@ -105,7 +105,7 @@ export function InfoCardWO({
   return (
     <InfoCardShell timestamp={timestamp}>
       <Text style={styles.infoCardLine}>
-        <Text style={styles.infoCardTitle}>🗒 Job# {shortId}</Text>
+        <Text style={styles.infoCardTitle}>🗒 {shortId}</Text>
       </Text>
       <Text style={styles.infoCardLine}>
         🗒 {trade}
@@ -292,7 +292,6 @@ const ACTION_LABEL: Record<ActionCardSpec['kind'], { icon: string; text: string 
   invoice_client: { icon: '💰', text: 'Invoice Client' },
   send_quote: { icon: '📋', text: 'Send Quote' },
   questions: { icon: '❓', text: 'Questions / Contact Client' },
-  view_invoice: { icon: '🧾', text: 'View Invoice' },
 };
 
 type ActionHandler = (kind: ActionCardSpec['kind']) => void;

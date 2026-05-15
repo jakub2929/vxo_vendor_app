@@ -5,7 +5,7 @@
 //
 // Order (top → bottom):
 //   1. Info card: Location
-//   2. Info card: Job# / trade / description / NTE / notes
+//   2. Info card: job number / trade / description / NTE / notes
 //   3. SLA banner row (only when urgency suggests a tight clock —
 //      'emergency' or 'priority')
 //   4. Info card: Emergency SLA (only when urgency === 'emergency')
@@ -16,6 +16,7 @@
 //      inserted at the position matching that timestamp
 //   8. System marker: "Check Out h:mm" — derived from jobs.checkout_time
 //   9. Action card row (per status), OR footer marker for paid/closed/cancelled
+import { formatJobNumber } from '@/utils/formatters';
 import type {
   ActionCardSpec,
   ChatMessage,
@@ -60,9 +61,9 @@ export function actionsForStatus(status: string): ActionCardSpec[] {
       // No action row for `invoiced`: by the time the job hits this state
       // the vendor has already tapped "Invoice Client" and the chat thread
       // has transitioned into the invoice-intake conversation (the
-      // "We ask 3 quick questions…" alfred reply). Reintroducing
-      // View Invoice / Quote / Questions here would compete with that
-      // ongoing flow. Matches Figma 4:10457, bottom of the composite.
+      // "We ask 3 quick questions…" alfred reply). A separate system
+      // marker confirms the send — see invoiceStatusMarkerText below.
+      // Matches Figma 4:10457, bottom of the composite.
       return [];
     default:
       return [];
@@ -167,7 +168,7 @@ export function buildTimeline(
   items.push({
     kind: 'info_card_wo',
     id: 'card-wo',
-    shortId: job.id.slice(0, 8).toUpperCase(),
+    shortId: formatJobNumber(job.id),
     trade: prettyTrade(job.trade),
     description: job.description ?? '',
     timing: job.eta_label ?? null,
@@ -302,6 +303,32 @@ export function buildTimeline(
     });
   }
 
+  // --- Invoice status confirmation marker ---
+  // While status === 'invoiced' the action row is empty (see actionsForStatus
+  // comment), so without this the vendor sees no textual acknowledgement of
+  // the Invoice Client tap — only the InvoiceCard rendered above. Derived
+  // purely from the latest non-quote invoice's status. Spliced in right after
+  // its InvoiceCard so the read order is card → confirmation.
+  if (job.status === 'invoiced') {
+    const latest = latestNonQuoteInvoice(invoiceCards);
+    if (latest) {
+      const text = invoiceStatusMarkerText(latest.status);
+      if (text) {
+        const cardId = `invoice-${latest.id}`;
+        const cardIdx = items.findIndex(
+          (it) => it.kind === 'invoice_card' && it.id === cardId,
+        );
+        if (cardIdx >= 0) {
+          items.splice(cardIdx + 1, 0, {
+            kind: 'system_marker',
+            id: `marker-invoice-status-${latest.id}`,
+            text,
+          });
+        }
+      }
+    }
+  }
+
   // --- Footer: action card row OR terminal-state footer marker ---
   const footer = footerForStatus(job.status);
   if (footer) {
@@ -329,6 +356,47 @@ function prettyTrade(slug: string): string {
     .split('_')
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(' ');
+}
+
+// Pick the invoice (kind !== 'quote') most likely to represent the job's
+// current invoicing state — latest by sent_at, falling back to created_at.
+// Returns null if the job has only quotes or no invoices at all (data
+// inconsistency: job.status === 'invoiced' but no row exists — caller
+// silently skips the marker).
+function latestNonQuoteInvoice(
+  invoiceCards: { invoice: Invoice; items: InvoiceItem[] }[],
+): Invoice | null {
+  let best: Invoice | null = null;
+  let bestKey = '';
+  for (const { invoice } of invoiceCards) {
+    if (invoice.kind === 'quote') continue;
+    const key = invoice.sent_at ?? invoice.created_at ?? '';
+    if (best === null || key.localeCompare(bestKey) > 0) {
+      best = invoice;
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
+// Maps invoice.status → textual confirmation shown as a system marker.
+// Returns null for statuses that get no marker: 'draft' (never reaches the
+// timeline anyway — send_invoice RPC inserts directly as 'sent'), 'overdue'
+// and 'cancelled' (handled by other surfaces or out of scope per spec).
+function invoiceStatusMarkerText(status: string): string | null {
+  switch (status) {
+    case 'sent':
+    case 'viewed':
+      return 'Invoice sent — awaiting client approval';
+    case 'approved':
+      return 'Invoice approved by client';
+    case 'paid':
+      return 'Payment received ✓';
+    case 'rejected':
+      return 'Invoice declined by client';
+    default:
+      return null;
+  }
 }
 
 function slaBannerText(job: Job): string {

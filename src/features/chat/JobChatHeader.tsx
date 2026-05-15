@@ -2,7 +2,7 @@
 //
 // Same gradient + safe-area shape as ChatsHeader, but the right cluster is
 // (call, more-circle) instead of (search, more-circle), and the left cluster
-// is (back arrow, "Job# 12345"). The "more" button opens the
+// is (back arrow, formatJobNumber(id)). The "more" button opens the
 // JobChatHeaderPopover.
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowLeft, MoreHorizontal, Phone } from 'lucide-react-native';

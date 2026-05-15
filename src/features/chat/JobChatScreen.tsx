@@ -1,7 +1,7 @@
 // Job Chat detail screen (Figma node 4:10092). Mounts at /job/[id].
 //
 // Composition (top → bottom):
-//   - JobChatHeader (gradient, back arrow, "Job# <shortId>", call, more)
+//   - JobChatHeader (gradient, back arrow, formatJobNumber(id), call, more)
 //   - FlatList of TimelineItems (info cards → bubbles → action row)
 //   - JobChatComposer (sticky, KeyboardAvoidingView padded)
 //
@@ -33,6 +33,7 @@ import {
 import { USE_MOCKS } from '@/features/home/useHomeData';
 import { useVendorLocation } from '@/hooks/useVendorLocation';
 import { formatDistance, haversineMiles } from '@/lib/geo';
+import { formatJobNumber } from '@/utils/formatters';
 import {
   appendMockAttachment,
   appendMockMessage,
@@ -236,17 +237,6 @@ export function JobChatScreen({ jobId }: Props) {
         // so the demo flow exercises the real navigation target.
         router.push(`/job/${job.id}/pm-contact`);
         break;
-
-      case 'view_invoice':
-        // TODO: view invoice flow pending Invoice builder screen. Currently
-        // unreachable — actionsForStatus() never returns 'view_invoice'.
-        if (USE_MOCKS) {
-          appendMockMessage(job.id, {
-            sender: 'system',
-            content: 'Opening invoice…',
-          });
-        }
-        break;
     }
   };
 
@@ -377,9 +367,7 @@ export function JobChatScreen({ jobId }: Props) {
     }
   };
 
-  const title = job
-    ? `Job# ${job.id.slice(0, 8).toUpperCase()}`
-    : 'Job#';
+  const title = job ? formatJobNumber(job.id) : '';
 
   const showFallback =
     !jobLoading && !messagesLoading && job && messages.length === 0 &&

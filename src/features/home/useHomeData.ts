@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { mockInvoices } from '@/lib/mockInvoices';
 import { mockJobs } from '@/lib/mockJobs';
 import { supabase } from '@/lib/supabase';
+import { formatJobNumber } from '@/utils/formatters';
 
 export type JobStatus =
   | 'new'
@@ -167,8 +168,7 @@ export function useHomeRecentJobs(vendorId: string | null | undefined) {
             )[0];
           return {
             jobId: j.id,
-            // TODO: human-readable short job ID — pending Ryan comment
-            shortId: j.id.slice(0, 8),
+            shortId: formatJobNumber(j.id),
             total: latestInv?.total ?? null,
             invoiceStatus: (latestInv?.status as InvoiceStatus | undefined) ?? null,
             jobStatus: j.status as JobStatus,
@@ -211,8 +211,7 @@ export function useHomeRecentJobs(vendorId: string | null | undefined) {
         const inv = latestByJob.get(j.id);
         return {
           jobId: j.id,
-          // TODO: human-readable short job ID — pending Ryan comment
-          shortId: j.id.slice(0, 8),
+          shortId: formatJobNumber(j.id),
           total: inv?.total ?? null,
           invoiceStatus: (inv?.status as InvoiceStatus | undefined) ?? null,
           jobStatus: j.status as JobStatus,

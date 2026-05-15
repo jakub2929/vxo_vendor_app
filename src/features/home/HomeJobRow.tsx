@@ -13,7 +13,7 @@ type Props = {
 
 // Figma nodes 4:10012 / 4:10014 / 4:10015 — the job list row.
 // Per Q5: same VXO avatar circle for every row. Trade-specific avatars are
-// deferred — see TODO. Per Q1: shortId is first-8 of UUID until a real short ID is wired.
+// deferred — see TODO. shortId is the display-ready job number (formatJobNumber).
 export function HomeJobRow({ job }: Props) {
   const { label, emoji } = statusLabel(job.jobStatus, job.invoiceStatus);
   const { pct, fillColor } = progressBucket(job.jobStatus, job.invoiceStatus);
@@ -27,7 +27,7 @@ export function HomeJobRow({ job }: Props) {
       </View>
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-          Job #{job.shortId} · {amount} · {label} {emoji}
+          {job.shortId} · {amount} · {label} {emoji}
         </Text>
         <View style={styles.progressTrack}>
           {fillColor && (

@@ -3,6 +3,7 @@ import type { JobStatus } from '@/features/home/useHomeData';
 import { useVendorLocation } from '@/hooks/useVendorLocation';
 import { formatMiles, haversineMiles } from '@/lib/geo';
 import { colors } from '@/theme';
+import { formatJobNumber } from '@/utils/formatters';
 import type { Database } from '@/types/database';
 import { JobAvatar } from './JobAvatar';
 import {
@@ -18,7 +19,7 @@ type Props = {
 };
 
 // Row layout (top → bottom in the content column):
-//   1. Title (bold)   — "Job# {shortId}". Trade lives on the Job Chat header,
+//   1. Title (bold)   — formatJobNumber(jobId). Trade lives on the Job Chat header,
 //                       not here, so the title stays scannable.
 //   2. Status         — colored timing line. ETA / "Today, 4:00 PM" /
 //                       "Completed" / etc. No distance suffix.
@@ -31,7 +32,7 @@ type Props = {
 // so any other consumer keeps working.
 export function JobRow({ job, onPress }: Props) {
   const meta = jobStatusMeta(job.status as JobStatus);
-  const shortId = job.id.slice(0, 8);
+  const jobNumber = formatJobNumber(job.id);
   const timestamp = formatRowTimestamp(job.updated_at ?? job.created_at ?? '');
 
   const { data: vendorCoords } = useVendorLocation();
@@ -54,14 +55,13 @@ export function JobRow({ job, onPress }: Props) {
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       accessibilityRole="button"
-      accessibilityLabel={`Job ${shortId}, ${status ?? 'no status'}, ${distanceLabel}`}
+      accessibilityLabel={`Job ${jobNumber}, ${status ?? 'no status'}, ${distanceLabel}`}
     >
       <JobAvatar dotVariant={meta.dotVariant} />
 
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-          {/* TODO: human-readable short job ID — pending Ryan comment */}
-          Job# {shortId}
+          {jobNumber}
         </Text>
         {status && (
           <Text

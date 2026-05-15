@@ -41,6 +41,7 @@ import { USE_MOCKS } from '@/features/home/useHomeData';
 import { appendMockQuote } from '@/lib/mockChatState';
 import { supabase } from '@/lib/supabase';
 import { colors, typography } from '@/theme';
+import { formatJobNumber } from '@/utils/formatters';
 
 const GRADIENT_START = { x: 0.913, y: 0.783 };
 const GRADIENT_END = { x: 0.087, y: 0.217 };
@@ -118,7 +119,7 @@ export default function QuoteBuilderRoute() {
     }
   };
 
-  const shortId = id.slice(0, 8).toUpperCase();
+  const jobNumber = formatJobNumber(id);
   const expiryDateLabel = formatExpiryDate(expiresInDays);
 
   return (
@@ -139,7 +140,7 @@ export default function QuoteBuilderRoute() {
             <ArrowLeft color="#FFFFFF" size={28} />
           </Pressable>
           <Text style={styles.headerTitle} numberOfLines={1}>
-            Quote for Job# {shortId}
+            Quote for {jobNumber}
           </Text>
           <View style={styles.headerSpacer} />
         </View>
