@@ -166,6 +166,7 @@ export function buildTimeline(
     // Distance is injected by JobChatScreen via post-process — buildTimeline
     // is pure and has no access to GPS. See callsite for the override.
     distance: null,
+    customerFirstName: firstNameOf(job.client_name),
   });
 
   items.push({
@@ -177,6 +178,7 @@ export function buildTimeline(
     timing: job.eta_label ?? null,
     nte: null, // schema has no NTE column today; show null until backend lands
     notes: null,
+    dispatchFee: job.dispatch_fee,
     timestamp: job.created_at ? formatTimeOfDay(job.created_at) : null,
   });
 
@@ -349,6 +351,15 @@ export function buildTimeline(
   }
 
   return items;
+}
+
+// jobs.client_name stores the full name (e.g. "Sarah Mitchell"). The chat
+// surface only shows the first token — full identity stays out of the
+// vendor UI per the contract.
+function firstNameOf(name: string | null): string | null {
+  if (!name) return null;
+  const first = name.trim().split(/\s+/)[0];
+  return first && first.length > 0 ? first : null;
 }
 
 function prettyTrade(slug: string): string {

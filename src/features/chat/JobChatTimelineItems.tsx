@@ -67,16 +67,21 @@ export function InfoCardLocation({
   address,
   timestamp,
   distance,
+  customerFirstName,
 }: {
   address: string;
   timestamp: string | null;
   distance: number | null;
+  customerFirstName: string | null;
 }) {
   return (
     <InfoCardShell timestamp={timestamp}>
       <Text style={styles.infoCardLine}>
         <Text style={styles.infoCardTitle}>📍 Location</Text>
       </Text>
+      {customerFirstName ? (
+        <Text style={styles.infoCardLine}>👤 Customer {customerFirstName}</Text>
+      ) : null}
       <Text style={styles.infoCardLine}>{address}</Text>
       {distance != null && (
         <Text style={styles.infoCardLine}>{formatDistance(distance)} away</Text>
@@ -92,6 +97,7 @@ export function InfoCardWO({
   timing,
   nte,
   notes,
+  dispatchFee,
   timestamp,
 }: {
   shortId: string;
@@ -100,6 +106,7 @@ export function InfoCardWO({
   timing: string | null;
   nte: number | null;
   notes: string | null;
+  dispatchFee: number | null;
   timestamp: string | null;
 }) {
   return (
@@ -114,6 +121,9 @@ export function InfoCardWO({
       {timing ? <Text style={styles.infoCardLine}>⚡ {timing}</Text> : null}
       {nte != null ? (
         <Text style={styles.infoCardLine}>💰 NTE ${nte}</Text>
+      ) : null}
+      {dispatchFee != null ? (
+        <Text style={styles.infoCardLine}>💵 Dispatch fee ${dispatchFee.toFixed(2)}</Text>
       ) : null}
       {notes ? <Text style={styles.infoCardLine}>🗓 {notes}</Text> : null}
     </InfoCardShell>
@@ -541,6 +551,7 @@ export function renderTimelineItem(
           address={item.address}
           timestamp={item.timestamp}
           distance={item.distance}
+          customerFirstName={item.customerFirstName}
         />
       );
     case 'info_card_wo':
@@ -552,6 +563,7 @@ export function renderTimelineItem(
           timing={item.timing}
           nte={item.nte}
           notes={item.notes}
+          dispatchFee={item.dispatchFee}
           timestamp={item.timestamp}
         />
       );

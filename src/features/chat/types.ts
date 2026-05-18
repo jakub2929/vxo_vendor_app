@@ -58,6 +58,9 @@ export type TimelineItem =
       // time in JobChatScreen (buildTimeline stays pure), null when GPS is
       // unavailable or job has no coordinates.
       distance: number | null;
+      // First name only of jobs.client_name. Privacy/contract: vendors see
+      // who the customer is for personalization but not the full identity.
+      customerFirstName: string | null;
     }
   | {
       kind: 'info_card_wo';
@@ -68,6 +71,7 @@ export type TimelineItem =
       timing: string | null;
       nte: number | null;
       notes: string | null;
+      dispatchFee: number | null;
       timestamp: string | null;
     }
   | { kind: 'info_card_sla'; id: string; acceptBy: string; onSiteBy: string }

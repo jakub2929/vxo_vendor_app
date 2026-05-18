@@ -16,6 +16,8 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Linking,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Platform,
   StyleSheet,
   Text,
@@ -100,6 +102,32 @@ export function JobChatScreen({ jobId }: Props) {
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
   const [completionSheetOpen, setCompletionSheetOpen] = useState(false);
   const pickerBusy = useRef(false);
+
+  // Auto-scroll: ride the bottom of the timeline as new bubbles/markers
+  // append, BUT respect the vendor reading history. `atBottomRef` flips to
+  // false the moment they scroll up past the threshold and back to true once
+  // they return to within ~80px of the end. onContentSizeChange is the only
+  // event that fires reliably for every kind of timeline growth (message
+  // insert, realtime push, status-derived marker, action-row swap), so we
+  // hang the scroll-to-end off that rather than a useEffect on messages.length.
+  const flatListRef = useRef<FlatList<TimelineItem>>(null);
+  const atBottomRef = useRef(true);
+
+  const handleScroll = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+      const distanceFromBottom =
+        contentSize.height - (contentOffset.y + layoutMeasurement.height);
+      atBottomRef.current = distanceFromBottom < 80;
+    },
+    [],
+  );
+
+  const handleContentSizeChange = useCallback(() => {
+    if (atBottomRef.current) {
+      flatListRef.current?.scrollToEnd({ animated: true });
+    }
+  }, []);
 
   // Straight-line miles vendor → job. Null when GPS is unavailable (perm
   // denied, hook still loading) OR when the job has no coordinates. Same
@@ -494,6 +522,7 @@ export function JobChatScreen({ jobId }: Props) {
             </View>
           ) : (
             <FlatList
+              ref={flatListRef}
               data={timeline}
               keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
@@ -516,6 +545,9 @@ export function JobChatScreen({ jobId }: Props) {
               }
               contentContainerStyle={styles.listContent}
               keyboardShouldPersistTaps="handled"
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+              onContentSizeChange={handleContentSizeChange}
             />
           )}
           <JobChatComposer
