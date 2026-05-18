@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "vxo-vendor-app",
-    "slug": "vxo-vendor-app",
+    "slug": "vxo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -86,6 +86,12 @@
         "projectId": "62c24a18-e6f8-442c-bfe4-f0ecfab4907a"
       }
     },
-    "owner": "jakub2929"
+    "owner": "jakub2929",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/62c24a18-e6f8-442c-bfe4-f0ecfab4907a"
+    }
   }
 }
