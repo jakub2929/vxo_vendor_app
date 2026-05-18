@@ -17,6 +17,10 @@ type Props = {
   // intact while gaining a tappable back affordance — Android has no
   // swipe-back and we want parity with JobChatHeader.
   onBack?: () => void;
+  // Optional node rendered at the head of the right cluster, before Search.
+  // Used by ChatsScreen for the Active/OOO pill toggle so the header doesn't
+  // need to know about vendor state.
+  leadingAction?: ReactNode;
 };
 
 // 1:1 implementation of the "Home Header" instance (4:10157) from Figma frame
@@ -25,7 +29,13 @@ type Props = {
 const GRADIENT_START = { x: 0.913, y: 0.783 };
 const GRADIENT_END = { x: 0.087, y: 0.217 };
 
-export function ChatsHeader({ onSearchPress, onMorePress, tabs, onBack }: Props) {
+export function ChatsHeader({
+  onSearchPress,
+  onMorePress,
+  tabs,
+  onBack,
+  leadingAction,
+}: Props) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -51,6 +61,7 @@ export function ChatsHeader({ onSearchPress, onMorePress, tabs, onBack }: Props)
           <Text style={styles.wordmark}>VXO</Text>
         </View>
         <View style={styles.rightCluster}>
+          {leadingAction}
           <Pressable
             hitSlop={8}
             onPress={onSearchPress}

@@ -11,6 +11,8 @@ import { ChatsHeader } from './ChatsHeader';
 import { ChatsTabStrip, type ChatsTab } from './ChatsTabStrip';
 import { JobsListBody } from './JobsListBody';
 import { MoreMenu } from './MoreMenu';
+import { OOOBanner } from './OOOBanner';
+import { OOOToggle } from './OOOToggle';
 import { PendingStatusBanner } from './PendingStatusBanner';
 import { useJobsList } from './useJobsList';
 
@@ -52,6 +54,7 @@ export function ChatsScreen() {
         <ChatsHeader
           onSearchPress={() => router.push('/search')}
           onMorePress={() => setMenuVisible(true)}
+          leadingAction={vendor ? <OOOToggle vendor={vendor} /> : undefined}
           tabs={
             <ChatsTabStrip
               active={activeTab}
@@ -63,6 +66,7 @@ export function ChatsScreen() {
         {activeTab === 'chats' ? (
           <>
             {vendor?.status === 'pending' && <PendingStatusBanner />}
+            {vendor?.status === 'out_of_office' && <OOOBanner vendor={vendor} />}
             <JobsListBody
               vendorId={vendor?.id}
               emptyState={
