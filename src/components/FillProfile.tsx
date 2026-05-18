@@ -290,23 +290,35 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       // Step 1: upsert the vendor row. We need vendor.id back to namespace
       // Storage paths and satisfy bucket RLS (which subselects vendors by
       // auth.jwt() email — the row must exist before uploads).
+      //
+      // Pre-check existence so we only send status='pending' on a true insert.
+      // The vendor_status_change_guard trigger (supabase/schema/harden-vendors-rls.sql)
+      // rejects any status transition outside the active <-> out_of_office pair,
+      // so re-running this flow for an already-active vendor would fail if we
+      // always sent status='pending'.
+      const { data: existing } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('email', userEmail)
+        .maybeSingle();
+
+      type VendorInsert = Database['public']['Tables']['vendors']['Insert'];
+      const upsertPayload: VendorInsert = {
+        email: userEmail,
+        name: values.fullName,
+        business: values.businessName,
+        trades: values.trades,
+        bio: values.about ?? null,
+        // Stripped to digits-only on submit; UI keeps the formatted form.
+        phone: phoneDigitsOnly(values.phone),
+        address: values.address.trim(),
+        zip_code: values.zip_code,
+        ...(existing ? {} : { status: 'pending' as const }),
+      };
+
       const { data: vendorRow, error: upsertError } = await supabase
         .from('vendors')
-        .upsert(
-          {
-            email: userEmail,
-            name: values.fullName,
-            business: values.businessName,
-            trades: values.trades,
-            bio: values.about ?? null,
-            // Stripped to digits-only on submit; UI keeps the formatted form.
-            phone: phoneDigitsOnly(values.phone),
-            address: values.address.trim(),
-            zip_code: values.zip_code,
-            status: 'pending',
-          },
-          { onConflict: 'email' },
-        )
+        .upsert(upsertPayload, { onConflict: 'email' })
         .select()
         .single();
 
