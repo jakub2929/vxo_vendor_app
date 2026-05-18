@@ -56,15 +56,15 @@ export function jobStatusMeta(status: JobStatus): JobStatusMeta {
       };
     case 'en_route':
       return {
-        headlineColor: FIGMA_RED,
-        literalHeadline: null,
+        headlineColor: colors.accent.orange,
+        literalHeadline: 'En route',
         subtitle: 'You Confirmed your route — on the way',
         dotVariant: 'offline',
       };
     case 'on_site':
       return {
-        headlineColor: FIGMA_RED,
-        literalHeadline: null,
+        headlineColor: colors.status.success,
+        literalHeadline: 'On site',
         subtitle: 'Check out when work is complete',
         dotVariant: 'offline',
       };

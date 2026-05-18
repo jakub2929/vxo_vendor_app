@@ -9,7 +9,13 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.vxo.vendor",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "package": "com.vxo.vendor",
@@ -65,7 +71,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "VXO uses your location to show how far away each work order is, so you can pick the closest job first."
+          "locationWhenInUsePermission": "VXO uses your location to show how far away each work order is and to detect when you arrive on site."
         }
       ],
       [

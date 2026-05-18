@@ -40,9 +40,11 @@ export type ActionCardSpec =
   | { kind: 'accept' }
   | { kind: 'reject' }
   | { kind: 'get_directions'; highlighted?: boolean }
+  | { kind: 'manual_arrival' }
   | { kind: 'invoice_client' }
   | { kind: 'send_quote' }
-  | { kind: 'questions' };
+  | { kind: 'questions' }
+  | { kind: 'complete_job' };
 
 export type TimelineItem =
   | { kind: 'date_separator'; id: string; label: string }

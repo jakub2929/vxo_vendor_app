@@ -34,6 +34,7 @@ export function actionsForStatus(status: string): ActionCardSpec[] {
     case 'accepted':
       return [
         { kind: 'get_directions' },
+        { kind: 'manual_arrival' },
         { kind: 'invoice_client' },
         { kind: 'send_quote' },
         { kind: 'questions' },
@@ -41,6 +42,7 @@ export function actionsForStatus(status: string): ActionCardSpec[] {
     case 'en_route':
       return [
         { kind: 'get_directions', highlighted: true },
+        { kind: 'manual_arrival' },
         { kind: 'invoice_client' },
         { kind: 'send_quote' },
         { kind: 'questions' },
@@ -50,6 +52,7 @@ export function actionsForStatus(status: string): ActionCardSpec[] {
         { kind: 'invoice_client' },
         { kind: 'send_quote' },
         { kind: 'questions' },
+        { kind: 'complete_job' },
       ];
     case 'complete':
       return [

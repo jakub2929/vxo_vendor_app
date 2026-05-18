@@ -30,6 +30,7 @@ import {
   AttachmentBottomSheet,
   type AttachmentSource,
 } from '@/components/AttachmentBottomSheet';
+import { showToast } from '@/components/Toast';
 import { USE_MOCKS } from '@/features/home/useHomeData';
 import { useVendorLocation } from '@/hooks/useVendorLocation';
 import { formatDistance, haversineMiles } from '@/lib/geo';
@@ -46,8 +47,10 @@ import { actionsForStatus, buildTimeline } from './buildTimeline';
 import { JobChatComposer } from './JobChatComposer';
 import { JobChatHeader } from './JobChatHeader';
 import { JobChatHeaderPopover } from './JobChatHeaderPopover';
+import { JobCompletionSheet } from './JobCompletionSheet';
 import { renderTimelineItem } from './JobChatTimelineItems';
 import type { ActionCardSpec, Job, TimelineItem } from './types';
+import { useArrivalDetection } from './useArrivalDetection';
 import {
   useJob,
   useJobInvoices,
@@ -95,6 +98,7 @@ export function JobChatScreen({ jobId }: Props) {
 
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [attachmentSheetOpen, setAttachmentSheetOpen] = useState(false);
+  const [completionSheetOpen, setCompletionSheetOpen] = useState(false);
   const pickerBusy = useRef(false);
 
   // Straight-line miles vendor → job. Null when GPS is unavailable (perm
@@ -145,6 +149,61 @@ export function JobChatScreen({ jobId }: Props) {
     await queryClient.invalidateQueries({ queryKey: ['chat', 'job', jobId] });
     void queryClient.invalidateQueries({ queryKey: ['jobs'] });
   };
+
+  // Shared arrival path — invoked by BOTH the GPS auto-detection hook AND the
+  // manual "I've arrived" action card. Status flip is the source of truth;
+  // the system message is decorative (failure to insert is logged, not
+  // surfaced). mark_on_site itself is idempotent against status (will
+  // RAISE 'Cannot mark on-site from status on_site' if already arrived),
+  // so we treat a 22023 error as a benign no-op for the auto path.
+  const arrival = useCallback(async () => {
+    if (!job) return;
+
+    if (USE_MOCKS) {
+      if (job.status === 'on_site') return;
+      setMockCheckinTime(job.id, new Date().toISOString());
+      setMockJobStatus(job.id, 'on_site');
+      appendMockMessage(job.id, {
+        sender: 'system',
+        content: '📍 Arrived on site',
+      });
+      return;
+    }
+
+    const { error: rpcError } = await supabase.rpc('mark_on_site', {
+      p_job_id: job.id,
+    });
+    if (rpcError) {
+      // Already on_site (auto-fire after the GPS check raced a manual tap),
+      // or back-end is rejecting — only nag the user on genuinely surprising
+      // errors. 22023 is the wrong-status RAISE; treat as silent no-op.
+      if (rpcError.code !== '22023') {
+        console.warn('[arrival] mark_on_site failed:', rpcError.message);
+        Alert.alert("Couldn't mark on site", rpcError.message);
+      }
+      return;
+    }
+
+    try {
+      const { error: msgError } = await supabase.from('job_messages').insert({
+        job_id: job.id,
+        sender: 'system',
+        content: '📍 Arrived on site',
+      });
+      if (msgError) {
+        console.warn('[arrival] system message insert failed:', msgError.message);
+      }
+    } catch (err) {
+      console.warn('[arrival] system message insert threw:', err);
+    }
+
+    await invalidateAfterTransition();
+  }, [job]);
+
+  // GPS auto-detection: on mount + on every bg→fg transition. Silent on
+  // permission denied / out-of-range — manual button is the always-visible
+  // fallback in the en_route + accepted action sets.
+  useArrivalDetection(job, arrival);
 
   const handleAction = async (kind: ActionCardSpec['kind']) => {
     if (!job) return;
@@ -237,8 +296,60 @@ export function JobChatScreen({ jobId }: Props) {
         // so the demo flow exercises the real navigation target.
         router.push(`/job/${job.id}/pm-contact`);
         break;
+
+      case 'manual_arrival':
+        // Always-visible counterpart to useArrivalDetection's GPS check.
+        // Same arrival() entry point — both paths converge.
+        await arrival();
+        break;
+
+      case 'complete_job':
+        // Opens the completion sheet. Upload + status transition happen
+        // inside handleCompletionSubmit once the vendor taps Mark Complete.
+        setCompletionSheetOpen(true);
+        break;
     }
   };
+
+  // Called by JobCompletionSheet once the vendor's photo set is all uploaded
+  // AND they tap Mark Complete. Returns `{ ok }` so the sheet knows whether
+  // to clear its state + close, or stay open for retry.
+  const handleCompletionSubmit = useCallback(
+    async (paths: string[]): Promise<{ ok: boolean }> => {
+      if (!job) return { ok: false };
+
+      if (USE_MOCKS) {
+        setMockJobStatus(job.id, 'complete');
+        appendMockMessage(job.id, {
+          sender: 'system',
+          content: 'Job marked complete. Photos uploaded.',
+        });
+        setCompletionSheetOpen(false);
+        showToast({
+          title: 'Job complete',
+          body: `${paths.length} photo${paths.length === 1 ? '' : 's'} uploaded.`,
+        });
+        return { ok: true };
+      }
+
+      const { error } = await supabase.rpc('complete_job', {
+        p_job_id: job.id,
+        p_photo_ids: paths,
+      });
+      if (error) {
+        Alert.alert("Couldn't complete job", error.message);
+        return { ok: false };
+      }
+      await invalidateAfterTransition();
+      setCompletionSheetOpen(false);
+      showToast({
+        title: 'Job complete',
+        body: `${paths.length} photo${paths.length === 1 ? '' : 's'} uploaded.`,
+      });
+      return { ok: true };
+    },
+    [job],
+  );
 
   const handleAttachmentSelect = useCallback(
     async (source: AttachmentSource) => {
@@ -247,15 +358,20 @@ export function JobChatScreen({ jobId }: Props) {
       // camera / document pickers can present cleanly.
       if (!job) return;
 
-      // Real path: needs Supabase Storage upload. Keep the picker out of
-      // the way and surface the gap honestly until the upload lands.
+      // Inline chat attachments — separate flow from job-completion photos
+      // (those go through JobCompletionSheet → the job-photos bucket via the
+      // Complete Job action card). This composer path inserts an
+      // attachment-bearing row into job_messages and still has no real-data
+      // wiring: the schema has no attachment columns yet. Keep the gap
+      // honest until that lands.
+      // TODO(real-data): decide between extending job_messages with
+      //   attachment columns vs. a chat-attachments storage bucket + URL
+      //   in message content. See Phase 2 audit, Section A item 6 (chat
+      //   attachments) — distinct from completion photos which are done.
       if (!USE_MOCKS) {
-        // TODO(real-data): upload to `job-photos` Storage bucket, then
-        //   insert a job_messages row with the storage URL (or extend
-        //   schema with an attachments column / table). See handoff.
         Alert.alert(
-          'Attachments not yet supported',
-          'Attachment uploads will be enabled once Storage is wired.',
+          'Chat attachments not yet supported',
+          'Sending photos / files in chat will be enabled once the message-attachment schema lands. To submit completion photos, use the Complete Job action.',
         );
         return;
       }
@@ -330,40 +446,19 @@ export function JobChatScreen({ jobId }: Props) {
     [job],
   );
 
-  // First vendor message after en_route promotes the job to on_site. This
-  // is a demo heuristic, not a geolocation-checked arrival flow — see the
-  // proposal's "geolocation-based arrival" item for the proper version.
   const handleSend = async (text: string) => {
     if (!job) return;
-
     if (USE_MOCKS) {
       sendMessage.mutate({ content: text, sender: 'vendor' });
-      if (job.status === 'en_route' && !job.checkin_time) {
-        setMockCheckinTime(job.id, new Date().toISOString());
-        setMockJobStatus(job.id, 'on_site');
-      }
       return;
     }
-
-    // Real mode: await the insert so we only attempt the on_site promotion
-    // after the message has actually persisted. mutateAsync surfaces errors
-    // via its own onError path; we just bail on rejection.
+    // mutateAsync errors are handled in the mutation's own onError; nothing
+    // else to do here. Arrival detection (status: en_route → on_site) lives
+    // in useArrivalDetection + the manual_arrival action — not here.
     try {
       await sendMessage.mutateAsync({ content: text, sender: 'vendor' });
     } catch {
-      return;
-    }
-    if (job.status === 'en_route' && !job.checkin_time) {
-      const { error } = await supabase.rpc('mark_on_site', {
-        p_job_id: job.id,
-      });
-      if (error) {
-        // Non-fatal: the message went through. Don't block the composer on
-        // a failed transition — log and let the user retry from the UI.
-        console.warn('[handleSend] mark_on_site failed:', error.message);
-        return;
-      }
-      await invalidateAfterTransition();
+      /* surfaced by the mutation; composer stays open */
     }
   };
 
@@ -445,6 +540,15 @@ export function JobChatScreen({ jobId }: Props) {
         onClose={() => setAttachmentSheetOpen(false)}
         onSelect={handleAttachmentSelect}
       />
+      {job ? (
+        <JobCompletionSheet
+          visible={completionSheetOpen}
+          jobId={job.id}
+          onClose={() => setCompletionSheetOpen(false)}
+          onSubmit={handleCompletionSubmit}
+          useMocks={USE_MOCKS}
+        />
+      ) : null}
     </View>
   );
 }

@@ -2,6 +2,10 @@
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
+## Design
+
+Canonical design source: [VXO Vendor App V.1 Final (Figma)](https://www.figma.com/design/BOenpimP099TBsGHwgLmxD/VXO-Vendor-App-V.1-Final?node-id=0-1&t=y7OxXbgEgj6eXOGV-1)
+
 ## Get started
 
 1. Install dependencies

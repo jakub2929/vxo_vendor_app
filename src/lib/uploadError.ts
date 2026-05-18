@@ -13,7 +13,7 @@ export type UploadErrorCode =
   | 'NETWORK_ERROR'
   | 'UPLOAD_FAILED';
 
-export type FileKind = 'avatar' | 'coi' | 'w9';
+export type FileKind = 'avatar' | 'coi' | 'w9' | 'job-photo';
 
 export class UploadError extends Error {
   readonly code: UploadErrorCode;
@@ -79,11 +79,11 @@ export function alertCopyFor(
   kind: FileKind,
   detail?: string,
 ): [title: string, message: string] {
-  const isAvatar = kind === 'avatar';
+  const isImageOnly = kind === 'avatar' || kind === 'job-photo';
 
   switch (code) {
     case 'FILE_TOO_LARGE':
-      return isAvatar
+      return isImageOnly
         ? [
             'Photo too large',
             'Photos must be under 10 MB. Try a smaller image or compress it.',
@@ -93,10 +93,10 @@ export function alertCopyFor(
             'Documents must be under 10 MB. Try a smaller file.',
           ];
     case 'WRONG_FILE_TYPE':
-      return isAvatar
+      return isImageOnly
         ? [
             'Unsupported file type',
-            'Please select a JPEG or PNG image.',
+            'Please select a JPEG, PNG, or WEBP image.',
           ]
         : [
             'Unsupported file type',
@@ -134,6 +134,8 @@ export function kindLabel(kind: FileKind): string {
       return 'COI';
     case 'w9':
       return 'W-9';
+    case 'job-photo':
+      return 'Photo';
   }
 }
 

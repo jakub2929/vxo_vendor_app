@@ -289,9 +289,11 @@ const ACTION_LABEL: Record<ActionCardSpec['kind'], { icon: string; text: string 
   accept: { icon: '✅', text: 'Accept' },
   reject: { icon: '❌', text: 'Reject' },
   get_directions: { icon: '📍', text: 'Get Directions' },
+  manual_arrival: { icon: '📍', text: "I've arrived" },
   invoice_client: { icon: '💰', text: 'Invoice Client' },
   send_quote: { icon: '📋', text: 'Send Quote' },
   questions: { icon: '❓', text: 'Questions / Contact Client' },
+  complete_job: { icon: '📸', text: 'Complete Job' },
 };
 
 type ActionHandler = (kind: ActionCardSpec['kind']) => void;

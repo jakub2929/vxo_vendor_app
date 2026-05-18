@@ -204,15 +204,17 @@ export default function UnlockScreen() {
           <View style={styles.middle}>
             <Text style={styles.subtitle}>Enter your 4-digit PIN to unlock VXO.</Text>
 
-            <OTPInput
-              value={value}
-              onChange={setValue}
-              length={PIN_LENGTH}
-              boxWidth={83}
-              boxGap={16}
-              mask
-              onComplete={handleComplete}
-            />
+            <View style={styles.pinRow}>
+              <OTPInput
+                value={value}
+                onChange={setValue}
+                length={PIN_LENGTH}
+                boxWidth={83}
+                boxGap={16}
+                mask
+                onComplete={handleComplete}
+              />
+            </View>
 
             {biometricButtonLabel ? (
               <Pressable
@@ -259,6 +261,11 @@ const styles = StyleSheet.create({
   middle: {
     marginTop: spacing.xxl + spacing.md,
     gap: SECTION_GAP,
+    alignItems: 'center',
+  },
+  pinRow: {
+    alignSelf: 'stretch',
+    marginHorizontal: -spacing.screen,
     alignItems: 'center',
   },
   subtitle: {

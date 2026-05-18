@@ -431,6 +431,10 @@ export type Database = {
         Args: { p_job_id: string }
         Returns: Database['public']['Tables']['jobs']['Row'][]
       }
+      complete_job: {
+        Args: { p_job_id: string; p_photo_ids: string[] }
+        Returns: Database['public']['Tables']['jobs']['Row'][]
+      }
       send_invoice: {
         Args: { p_job_id: string; p_items: Json; p_notes?: string | null }
         Returns: Database['public']['Tables']['invoices']['Row'][]

@@ -17,7 +17,7 @@ export default function OtpScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const { seconds, restart } = useCountdown(60);
+  const { seconds, restart } = useCountdown(50);
 
   const resolvedEmail = useMemo(() => {
     const rawEmail = Array.isArray(email) ? email[0] : email;

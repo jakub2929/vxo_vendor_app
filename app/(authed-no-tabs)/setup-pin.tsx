@@ -104,16 +104,18 @@ export default function SetupPinScreen() {
           <View style={styles.middle}>
             <Text style={styles.subtitle}>{subtitle}</Text>
 
-            <OTPInput
-              key={step}
-              value={value}
-              onChange={setValue}
-              length={PIN_LENGTH}
-              boxWidth={83}
-              boxGap={16}
-              mask
-              onComplete={handleEnterComplete}
-            />
+            <View style={styles.pinRow}>
+              <OTPInput
+                key={step}
+                value={value}
+                onChange={setValue}
+                length={PIN_LENGTH}
+                boxWidth={83}
+                boxGap={16}
+                mask
+                onComplete={handleEnterComplete}
+              />
+            </View>
 
             <Pressable onPress={handleSkip} hitSlop={8} disabled={busy}>
               <Text style={styles.skipLink}>Skip for now</Text>
@@ -148,6 +150,11 @@ const styles = StyleSheet.create({
   middle: {
     marginTop: spacing.xxl + spacing.md,
     gap: SECTION_GAP,
+    alignItems: 'center',
+  },
+  pinRow: {
+    alignSelf: 'stretch',
+    marginHorizontal: -spacing.screen,
     alignItems: 'center',
   },
   subtitle: {
