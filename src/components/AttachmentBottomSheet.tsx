@@ -6,8 +6,8 @@
 // and emits `onSelect(source)`. Onboarding writes the result to form state;
 // chat appends a vendor message bubble. Keeping the side-effects out keeps
 // the component reusable.
-import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { Camera, File as FileIcon, Image as ImageIcon } from 'lucide-react-native';
 import { BottomSheet } from './BottomSheet';
 import { UploadActionChip } from './UploadActionChip';
@@ -29,9 +29,9 @@ type Props = {
 // "Different document picking in progress". So we defer onSelect until the
 // sheet has actually finished dismissing.
 //
-// iOS: deterministic — wait for Modal.onDismiss.
-// Android: Modal.onDismiss is not invoked; detect `visible` going false and
-//   yield one frame so the slide-out paints.
+// BottomSheet now fires onDismissed after the Modal has truly unmounted (+
+// an iOS-only 100ms grace period for UIKit teardown), uniformly on both
+// platforms — no more platform branching here.
 export function AttachmentBottomSheet({ visible, onClose, onSelect }: Props) {
   const [pendingSource, setPendingSource] = useState<AttachmentSource | null>(null);
 
@@ -44,28 +44,27 @@ export function AttachmentBottomSheet({ visible, onClose, onSelect }: Props) {
     onClose();
   };
 
-  const flush = () => {
+  // useCallback so the prop reference is stable across renders — keeps
+  // BottomSheet's onDismissedRef from churning on every parent render.
+  const flush = useCallback(() => {
     if (!pendingSource) return;
     const source = pendingSource;
+    // Clear state BEFORE invoking onSelect — if onSelect throws (picker
+    // module error, etc), the next handlePress still sees pendingSource as
+    // null and can queue a fresh pick.
     setPendingSource(null);
-    onSelect(source);
-  };
-
-  // Android fallback for the iOS-only Modal.onDismiss.
-  useEffect(() => {
-    if (Platform.OS === 'ios') return;
-    if (visible) return;
-    if (!pendingSource) return;
-    const raf = requestAnimationFrame(flush);
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, pendingSource]);
+    try {
+      onSelect(source);
+    } catch (err) {
+      console.warn('[AttachmentBottomSheet] onSelect threw:', err);
+    }
+  }, [pendingSource, onSelect]);
 
   return (
     <BottomSheet
       visible={visible}
       onClose={onClose}
-      onDismissed={Platform.OS === 'ios' ? flush : undefined}
+      onDismissed={flush}
     >
       <View style={styles.row}>
         <UploadActionChip

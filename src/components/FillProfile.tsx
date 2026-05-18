@@ -1,9 +1,9 @@
 // TODO: Fields per Ryan's spec but not in Figma — collect in Profile tab later:
-//   - address (TEXT)
-//   - phone (TEXT, mandatory for PM contact)
 //   - trip_charge / dispatch_fee (NUMERIC)
 //   - radius_miles (NUMERIC)
 // vendors table has columns for these; just not in this screen's design.
+// (phone, address, zip_code are now collected here — see Personal Info /
+// Service Area sections below.)
 //
 // TODO: when Alfred approves via Telegram, push notification triggers and routes
 // user to (tabs) home. Real-time subscription to vendors.status would also work.
@@ -59,6 +59,7 @@ import {
 } from '@/lib/vendorStorage';
 import type { Database } from '@/types/database';
 import { colors, radius, spacing, typography } from '@/theme';
+import { formatPhoneInput, phoneDigitsOnly } from '@/utils/formatters';
 
 type UploadTarget = 'avatar' | 'coi' | 'w9';
 
@@ -78,6 +79,16 @@ const schema = z.object({
     .array(z.enum(['hvac', 'plumbing', 'handyman', 'electrical']))
     .min(1, 'Select at least one'),
   email: z.string().email(),
+  // Phone is stored formatted in form state (mask runs on every keystroke);
+  // validation strips back to digits to enforce exactly 10.
+  phone: z
+    .string()
+    .refine(
+      (v) => phoneDigitsOnly(v).length === 10,
+      'Enter a 10-digit US phone number',
+    ),
+  address: z.string().trim().min(3, 'Address is required'),
+  zip_code: z.string().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code'),
   about: z.string().optional(),
   avatar: assetSchema,
   coi: assetSchema,
@@ -139,6 +150,9 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       businessName: '',
       trades: [],
       email: initialEmail ?? '',
+      phone: '',
+      address: '',
+      zip_code: '',
       about: '',
     },
   });
@@ -285,6 +299,10 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
             business: values.businessName,
             trades: values.trades,
             bio: values.about ?? null,
+            // Stripped to digits-only on submit; UI keeps the formatted form.
+            phone: phoneDigitsOnly(values.phone),
+            address: values.address.trim(),
+            zip_code: values.zip_code,
             status: 'pending',
           },
           { onConflict: 'email' },
@@ -428,87 +446,164 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
         </View>
 
         <View style={styles.fields}>
-          <Controller
-            control={control}
-            name="fullName"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <FieldShell error={errors.fullName?.message}>
-                <TextInput
-                  style={styles.input}
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  placeholder="Full Name"
-                  placeholderTextColor={colors.text.tertiary}
-                />
-              </FieldShell>
-            )}
-          />
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>Personal Info</Text>
 
-          <Controller
-            control={control}
-            name="businessName"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <FieldShell error={errors.businessName?.message}>
-                <TextInput
-                  style={styles.input}
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  placeholder="Business Name"
-                  placeholderTextColor={colors.text.tertiary}
-                />
-              </FieldShell>
-            )}
-          />
+            <Controller
+              control={control}
+              name="fullName"
+              render={({ field: { value, onChange, onBlur } }) => (
+                <FieldShell error={errors.fullName?.message}>
+                  <TextInput
+                    style={styles.input}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Full Name"
+                    placeholderTextColor={colors.text.tertiary}
+                  />
+                </FieldShell>
+              )}
+            />
 
-          <Pressable onPress={() => setTradePickerOpen(true)}>
-            <FieldShell error={errors.trades?.message as string | undefined}>
-              <Text
-                style={[styles.input, trades.length === 0 && styles.placeholder]}
-                numberOfLines={1}
-              >
-                {trades.length > 0 ? tradesToLabel(trades) : 'Trade & Services'}
-              </Text>
-              <Calendar size={20} color={colors.text.tertiary} />
-            </FieldShell>
-          </Pressable>
+            <Controller
+              control={control}
+              name="email"
+              render={({ field: { value } }) => (
+                <FieldShell error={errors.email?.message}>
+                  <Text
+                    style={[styles.input, !value && styles.placeholder]}
+                    numberOfLines={1}
+                  >
+                    {value || 'Email'}
+                  </Text>
+                  <Mail size={20} color={colors.text.tertiary} />
+                </FieldShell>
+              )}
+            />
 
-          <Controller
-            control={control}
-            name="email"
-            render={({ field: { value } }) => (
-              <FieldShell error={errors.email?.message}>
+            <Controller
+              control={control}
+              name="phone"
+              render={({ field: { value, onChange, onBlur } }) => (
+                <FieldShell error={errors.phone?.message}>
+                  <TextInput
+                    style={styles.input}
+                    value={value}
+                    onChangeText={(text) => onChange(formatPhoneInput(text))}
+                    onBlur={onBlur}
+                    placeholder="(555) 555-5555"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="phone-pad"
+                    // "(555) 555-5555" is 14 chars — caps paste & mask runaway.
+                    maxLength={14}
+                    autoComplete="tel"
+                    textContentType="telephoneNumber"
+                  />
+                </FieldShell>
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="about"
+              render={({ field: { value, onChange, onBlur } }) => (
+                <FieldShell error={undefined} multiline>
+                  <TextInput
+                    style={[styles.input, styles.multilineInput]}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Tell us about yourself"
+                    placeholderTextColor={colors.text.tertiary}
+                    multiline
+                    numberOfLines={4}
+                    textAlignVertical="top"
+                  />
+                </FieldShell>
+              )}
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>Service Area</Text>
+
+            <Controller
+              control={control}
+              name="address"
+              render={({ field: { value, onChange, onBlur } }) => (
+                <FieldShell error={errors.address?.message}>
+                  <TextInput
+                    style={styles.input}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Street Address"
+                    placeholderTextColor={colors.text.tertiary}
+                    autoComplete="street-address"
+                    textContentType="fullStreetAddress"
+                    autoCapitalize="words"
+                  />
+                </FieldShell>
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="zip_code"
+              render={({ field: { value, onChange, onBlur } }) => (
+                <FieldShell error={errors.zip_code?.message}>
+                  <TextInput
+                    style={styles.input}
+                    value={value}
+                    onChangeText={(text) =>
+                      onChange(text.replace(/\D/g, '').slice(0, 5))
+                    }
+                    onBlur={onBlur}
+                    placeholder="ZIP Code"
+                    placeholderTextColor={colors.text.tertiary}
+                    keyboardType="number-pad"
+                    maxLength={5}
+                    autoComplete="postal-code"
+                    textContentType="postalCode"
+                  />
+                </FieldShell>
+              )}
+            />
+          </View>
+
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>Business</Text>
+
+            <Controller
+              control={control}
+              name="businessName"
+              render={({ field: { value, onChange, onBlur } }) => (
+                <FieldShell error={errors.businessName?.message}>
+                  <TextInput
+                    style={styles.input}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="Business Name"
+                    placeholderTextColor={colors.text.tertiary}
+                  />
+                </FieldShell>
+              )}
+            />
+
+            <Pressable onPress={() => setTradePickerOpen(true)}>
+              <FieldShell error={errors.trades?.message as string | undefined}>
                 <Text
-                  style={[styles.input, !value && styles.placeholder]}
+                  style={[styles.input, trades.length === 0 && styles.placeholder]}
                   numberOfLines={1}
                 >
-                  {value || 'Email'}
+                  {trades.length > 0 ? tradesToLabel(trades) : 'Trade & Services'}
                 </Text>
-                <Mail size={20} color={colors.text.tertiary} />
+                <Calendar size={20} color={colors.text.tertiary} />
               </FieldShell>
-            )}
-          />
-
-          <Controller
-            control={control}
-            name="about"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <FieldShell error={undefined} multiline>
-                <TextInput
-                  style={[styles.input, styles.multilineInput]}
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  placeholder="Tell us about yourself"
-                  placeholderTextColor={colors.text.tertiary}
-                  multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
-                />
-              </FieldShell>
-            )}
-          />
+            </Pressable>
+          </View>
 
           <UploadField
             label="Upload COI for Larger Jobs :  (Optional)"
@@ -590,6 +685,20 @@ const styles = StyleSheet.create({
   },
   fields: {
     gap: spacing.lg,
+  },
+  // Three sections (Personal Info / Service Area / Business) sit inside the
+  // `fields` container, so the outer gap:lg separates sections and the inner
+  // gap:lg keeps field-to-field spacing identical to the pre-section design.
+  section: {
+    gap: spacing.lg,
+  },
+  sectionHeader: {
+    fontFamily: 'Urbanist-Bold',
+    fontWeight: '700',
+    fontSize: 14,
+    lineHeight: 22.4,
+    letterSpacing: 0.2,
+    color: colors.text.bodyAlt,
   },
   field: {
     minHeight: 56,

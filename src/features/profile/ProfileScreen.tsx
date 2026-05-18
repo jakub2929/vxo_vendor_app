@@ -50,7 +50,8 @@ import {
 import { UploadField } from '@/features/profile/UploadField';
 import { useVendor } from '@/hooks/useVendor';
 import { supabase } from '@/lib/supabase';
-import { clearVendorCache } from '@/lib/vendorCache';
+import { setCachedVendor } from '@/lib/vendorCache';
+import { showToast } from '@/components/Toast';
 import {
   alertCopyFor,
   type FileKind,
@@ -67,6 +68,7 @@ import {
 } from '@/lib/vendorStorage';
 import { colors, radius, spacing, typography } from '@/theme';
 import type { Database } from '@/types/database';
+import { formatPhoneInput, phoneDigitsOnly } from '@/utils/formatters';
 
 const TRADES = ['hvac', 'plumbing', 'handyman', 'electrical'] as const;
 
@@ -83,6 +85,16 @@ const schema = z.object({
   fullName: z.string().min(2, 'Required'),
   businessName: z.string().min(2, 'Required'),
   trades: z.array(z.enum(TRADES)).min(1, 'Select at least one'),
+  // Phone is held formatted in form state (mask runs on every keystroke);
+  // submit strips back to digits via phoneDigitsOnly. Mirrors FillProfile.
+  phone: z
+    .string()
+    .refine(
+      (v) => phoneDigitsOnly(v).length === 10,
+      'Enter a 10-digit US phone number',
+    ),
+  address: z.string().trim().min(3, 'Address is required'),
+  zip_code: z.string().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code'),
   about: z.string().optional(),
   avatar: assetSchema,
   coi: assetSchema,
@@ -113,13 +125,16 @@ export function ProfileScreen() {
     setValue,
     watch,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       fullName: '',
       businessName: '',
       trades: [],
+      phone: '',
+      address: '',
+      zip_code: '',
       about: '',
       avatar: undefined,
       coi: undefined,
@@ -136,6 +151,12 @@ export function ProfileScreen() {
       fullName: vendor.name ?? '',
       businessName: vendor.business ?? '',
       trades: parseTrades(vendor.trades),
+      // DB stores digits-only; re-run the mask so the input shows
+      // "(555) 123-4567" on first render. Empty/null vendors get '' and the
+      // refine() error will surface on first save attempt.
+      phone: formatPhoneInput(vendor.phone ?? ''),
+      address: vendor.address ?? '',
+      zip_code: vendor.zip_code ?? '',
       about: vendor.bio ?? '',
       avatar: undefined,
       coi: undefined,
@@ -166,9 +187,12 @@ export function ProfileScreen() {
   };
 
   const setForTarget = (target: UploadTarget, asset: Asset) => {
-    if (target === 'avatar') setValue('avatar', asset);
-    if (target === 'coi') setValue('coi', asset);
-    if (target === 'w9') setValue('w9', asset);
+    // shouldDirty: true so the Save button enables on a new asset pick. The
+    // default setValue path bypasses dirty tracking, which would leave the
+    // CTA greyed out even after the user picked a new file.
+    if (target === 'avatar') setValue('avatar', asset, { shouldDirty: true });
+    if (target === 'coi') setValue('coi', asset, { shouldDirty: true });
+    if (target === 'w9') setValue('w9', asset, { shouldDirty: true });
   };
 
   // Pre-upload validation, run at pick time so bad files never reach the
@@ -313,6 +337,10 @@ export function ProfileScreen() {
         name: values.fullName,
         business: values.businessName,
         trades: values.trades,
+        // Stripped to digits-only on submit; UI keeps the formatted form.
+        phone: phoneDigitsOnly(values.phone),
+        address: values.address.trim(),
+        zip_code: values.zip_code,
         bio: values.about ?? null,
       };
       if (avatarRes.status === 'fulfilled' && avatarRes.value) {
@@ -326,21 +354,30 @@ export function ProfileScreen() {
       }
 
       // Filter by email to match the vendors RLS USING clause exactly (see
-      // supabase/migrations/003_rls_policies.sql). .select() exposes the row
-      // count so we fail loudly if RLS silently filters the update.
+      // supabase/migrations/003_rls_policies.sql). `.single()` surfaces the
+      // no-rows case as PGRST116 error, so RLS-silent-filter still fails loud.
       const { data, error } = await supabase
         .from('vendors')
         .update(patch)
         .eq('email', vendor.email)
-        .select();
+        .select()
+        .single();
 
       if (error) throw new Error(error.message);
-      if (!data || data.length === 0) {
-        throw new Error('Update returned no rows. RLS may be filtering this vendor.');
+      if (!data) {
+        throw new Error('Update returned no row. RLS may be filtering this vendor.');
       }
 
-      clearVendorCache();
-      await refresh();
+      // Optimistic local cache update with the row we just got back — avoids
+      // the full `clearVendorCache + refresh` round-trip that caused the
+      // visible "refresh flicker" between save and confirmation.
+      setCachedVendor(data);
+
+      // Mark the current form values as the new clean baseline so isDirty
+      // flips back to false and the Save button greys out. Using the user-
+      // facing form values (formatted phone, etc.) keeps the input visually
+      // identical to the post-save state.
+      reset(values);
 
       const kinds: FileKind[] = ['avatar', 'coi', 'w9'];
       const failures = uploads
@@ -351,6 +388,8 @@ export function ProfileScreen() {
         );
 
       if (failures.length > 0) {
+        // Partial-failure path: text fields saved but a file didn't upload.
+        // User needs the detail, so keep the blocking Alert here.
         const lines = failures.map((f) => {
           const code =
             f.r.reason instanceof UploadError ? f.r.reason.code : 'UPLOAD_FAILED';
@@ -361,7 +400,10 @@ export function ProfileScreen() {
           `Other changes were saved. Some files didn't upload:\n\n${lines.join('\n')}`,
         );
       } else {
-        Alert.alert('Profile updated');
+        showToast({
+          title: 'Profile updated',
+          body: 'Your changes have been saved.',
+        });
       }
     } catch (err) {
       Alert.alert('Update failed', err instanceof Error ? err.message : 'Unknown error');
@@ -389,7 +431,10 @@ export function ProfileScreen() {
     );
   }
 
-  const avatarUri = avatar?.uri ?? getVendorAvatarUrl(vendor.avatar_path) ?? undefined;
+  const avatarUri =
+    avatar?.uri ??
+    getVendorAvatarUrl(vendor.avatar_path, vendor.updated_at) ??
+    undefined;
   const coiDisplay = coi?.fileName ?? (vendor.coi_path ? 'Uploaded' : undefined);
   const w9Display = w9?.fileName ?? (vendor.w9_path ? 'Uploaded' : undefined);
 
@@ -413,6 +458,9 @@ export function ProfileScreen() {
         </View>
 
         <View style={styles.fields}>
+          {/* Order mirrors FillProfile: Name, Email, Phone, Address, ZIP,
+              Business, Trades, Bio, then documents. Keeps onboarding and
+              profile edit visually consistent. */}
           <Controller
             control={control}
             name="fullName"
@@ -425,6 +473,82 @@ export function ProfileScreen() {
                   onBlur={onBlur}
                   placeholder="Full Name"
                   placeholderTextColor={colors.text.tertiary}
+                />
+              </FieldShell>
+            )}
+          />
+
+          {/* Email is the auth identity — changing it requires re-OTP, out of
+              scope here. Render as a non-editable styled row. */}
+          <View style={styles.readonlyField}>
+            <Text
+              style={[styles.input, !vendor.email && styles.placeholder]}
+              numberOfLines={1}
+            >
+              {vendor.email ?? 'Email'}
+            </Text>
+            <Mail size={20} color={colors.text.tertiary} />
+          </View>
+
+          <Controller
+            control={control}
+            name="phone"
+            render={({ field: { value, onChange, onBlur } }) => (
+              <FieldShell error={errors.phone?.message}>
+                <TextInput
+                  style={styles.input}
+                  value={value}
+                  onChangeText={(text) => onChange(formatPhoneInput(text))}
+                  onBlur={onBlur}
+                  placeholder="(555) 555-5555"
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="phone-pad"
+                  maxLength={14}
+                  autoComplete="tel"
+                  textContentType="telephoneNumber"
+                />
+              </FieldShell>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="address"
+            render={({ field: { value, onChange, onBlur } }) => (
+              <FieldShell error={errors.address?.message}>
+                <TextInput
+                  style={styles.input}
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="Street Address"
+                  placeholderTextColor={colors.text.tertiary}
+                  autoComplete="street-address"
+                  textContentType="fullStreetAddress"
+                  autoCapitalize="words"
+                />
+              </FieldShell>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="zip_code"
+            render={({ field: { value, onChange, onBlur } }) => (
+              <FieldShell error={errors.zip_code?.message}>
+                <TextInput
+                  style={styles.input}
+                  value={value}
+                  onChangeText={(text) =>
+                    onChange(text.replace(/\D/g, '').slice(0, 5))
+                  }
+                  onBlur={onBlur}
+                  placeholder="ZIP Code"
+                  placeholderTextColor={colors.text.tertiary}
+                  keyboardType="number-pad"
+                  maxLength={5}
+                  autoComplete="postal-code"
+                  textContentType="postalCode"
                 />
               </FieldShell>
             )}
@@ -458,18 +582,6 @@ export function ProfileScreen() {
               <Calendar size={20} color={colors.text.tertiary} />
             </FieldShell>
           </Pressable>
-
-          {/* Email is the auth identity — changing it requires re-OTP, out of
-              scope here. Render as a non-editable styled row. */}
-          <View style={styles.readonlyField}>
-            <Text
-              style={[styles.input, !vendor.email && styles.placeholder]}
-              numberOfLines={1}
-            >
-              {vendor.email ?? 'Email'}
-            </Text>
-            <Mail size={20} color={colors.text.tertiary} />
-          </View>
 
           <Controller
             control={control}
@@ -507,8 +619,11 @@ export function ProfileScreen() {
         </View>
 
         <Pressable
-          style={[styles.cta, submitting && styles.ctaDisabled]}
-          disabled={submitting}
+          style={[
+            styles.cta,
+            (!isDirty || submitting) && styles.ctaDisabled,
+          ]}
+          disabled={!isDirty || submitting}
           onPress={handleSubmit(onSubmit)}
         >
           <Text style={styles.ctaLabel}>{submitting ? 'Saving…' : 'Save changes'}</Text>
@@ -526,7 +641,9 @@ export function ProfileScreen() {
         visible={tradePickerOpen}
         selected={trades}
         onClose={() => setTradePickerOpen(false)}
-        onChange={(next) => setValue('trades', next as Trade[])}
+        onChange={(next) =>
+          setValue('trades', next as Trade[], { shouldDirty: true })
+        }
       />
     </View>
   );

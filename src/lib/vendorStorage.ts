@@ -163,10 +163,20 @@ export async function uploadVendorDocument(
   return path;
 }
 
-export function getVendorAvatarUrl(path: string | null | undefined): string | null {
+// Storage paths are deterministic per vendor (`${vendorId}/avatar`), so the
+// public URL doesn't change when the bytes change. <Image> caches by URL,
+// so without a cache-bust key the new avatar bytes never reach the screen
+// after a save — the vendor keeps seeing the previous picture.
+// updated_at works as the bust key because the vendors set_updated_at
+// trigger refreshes it on every UPDATE.
+export function getVendorAvatarUrl(
+  path: string | null | undefined,
+  cacheBustKey?: string | null,
+): string | null {
   if (!path) return null;
   // Public bucket — synchronous URL construction, no network call.
-  return supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path).data.publicUrl;
+  const url = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path).data.publicUrl;
+  return cacheBustKey ? `${url}?t=${encodeURIComponent(cacheBustKey)}` : url;
 }
 
 // Signed URLs expire — fetch lazily on view, don't cache aggressively.
