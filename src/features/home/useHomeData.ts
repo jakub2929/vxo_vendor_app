@@ -16,7 +16,23 @@ export type JobStatus =
   | 'closed'
   | 'cancelled';
 
-export type InvoiceStatus = 'draft' | 'sent' | 'approved' | 'paid' | 'rejected';
+// Full union of invoice + quote statuses. The original 5 are Ryan's baseline
+// (DEV_ONLY migration); 'viewed' / 'overdue' / 'cancelled' came in with
+// add-invoice-extensions.sql; 'accepted' / 'expired' came in with
+// add-quote-extensions.sql. The query path here casts raw strings into this
+// type — widening the union keeps callers honest about the values they need
+// to handle (e.g. status-driven color choices in HomeJobRow).
+export type InvoiceStatus =
+  | 'draft'
+  | 'sent'
+  | 'viewed'
+  | 'approved'
+  | 'accepted'
+  | 'paid'
+  | 'overdue'
+  | 'rejected'
+  | 'cancelled'
+  | 'expired';
 
 export type HomeSummary = { earnedThisMonth: number; jobsCount: number };
 export type HomeStats = { invoicesSent: number; invoicesPaid: number };

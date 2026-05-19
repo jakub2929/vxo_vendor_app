@@ -1,11 +1,39 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { VXOMascot } from '@/components/VXOMascot';
 import { colors } from '@/theme';
+import { formatMoney } from '@/utils/formatters';
 import {
   progressBucket,
   statusLabel,
   type HomeRecentJob,
+  type InvoiceStatus,
 } from './useHomeData';
+
+// Hex values are the `fg` side of INVOICE_STATUS_BADGE / QUOTE_STATUS_BADGE
+// used by the chat invoice bubble and the earnings cards, so the same status
+// reads the same color across surfaces. Per Ryan's call (Phase 3):
+//   green   — money received or invoice commitment ('paid', 'approved')
+//   blue    — in flight / agreed but no money yet ('sent', 'viewed', 'accepted')
+//   red     — actionable, needs vendor follow-up ('overdue')
+//   gray    — terminal or pre-send, no action ('draft', 'rejected',
+//             'cancelled', 'expired')
+const STATUS_AMOUNT_COLOR: Record<InvoiceStatus, string> = {
+  paid: '#2E7D32',
+  approved: '#2E7D32',
+  sent: '#1565C0',
+  viewed: '#1565C0',
+  accepted: '#1565C0',
+  overdue: '#C62828',
+  draft: '#9E9E9E',
+  rejected: '#9E9E9E',
+  cancelled: '#9E9E9E',
+  expired: '#9E9E9E',
+};
+
+function amountColor(status: InvoiceStatus | null): string {
+  if (!status) return colors.text.tertiary;
+  return STATUS_AMOUNT_COLOR[status] ?? colors.text.tertiary;
+}
 
 type Props = {
   job: HomeRecentJob;
@@ -42,9 +70,19 @@ export function HomeJobRow({ job }: Props) {
         <VXOMascot size={48} color={colors.brand.primary} />
       </View>
       <View style={styles.content}>
-        <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-          {job.shortId}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
+            {job.shortId}
+          </Text>
+          {job.total !== null && (
+            <Text
+              style={[styles.amount, { color: amountColor(job.invoiceStatus) }]}
+              numberOfLines={1}
+            >
+              {formatMoney(job.total)}
+            </Text>
+          )}
+        </View>
         <Text style={styles.subtitle} numberOfLines={1} ellipsizeMode="tail">
           {subtitle} {emoji}
         </Text>
@@ -93,13 +131,31 @@ const styles = StyleSheet.create({
     // gets its own marginTop below so the bar visually separates from text.
     gap: 2,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
   title: {
+    // flexShrink lets the Job# ellipsize before crowding out the amount on
+    // the right. In practice formatJobNumber emits a fixed 8-char hex, so
+    // this is defensive against a future longer numbering scheme.
+    flexShrink: 1,
     fontFamily: 'Urbanist-Bold',
     fontWeight: '700',
     fontSize: 18,
     lineHeight: 25.2,
     color: colors.text.primary,
     overflow: 'hidden',
+  },
+  amount: {
+    flexShrink: 0,
+    fontFamily: 'Urbanist-Bold',
+    fontWeight: '700',
+    fontSize: 18,
+    lineHeight: 25.2,
+    // color is set inline per row via amountColor(invoiceStatus).
   },
   subtitle: {
     fontFamily: 'Urbanist-Medium',
