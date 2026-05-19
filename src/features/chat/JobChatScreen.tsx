@@ -20,7 +20,6 @@ import {
   type NativeSyntheticEvent,
   Platform,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
@@ -32,6 +31,7 @@ import {
   AttachmentBottomSheet,
   type AttachmentSource,
 } from '@/components/AttachmentBottomSheet';
+import { EmptyState } from '@/components/EmptyState';
 import { showToast } from '@/components/Toast';
 import { USE_MOCKS } from '@/features/home/useHomeData';
 import { useVendorLocation } from '@/hooks/useVendorLocation';
@@ -44,7 +44,7 @@ import {
   setMockJobStatus,
 } from '@/lib/mockChatState';
 import { supabase } from '@/lib/supabase';
-import { colors, typography } from '@/theme';
+import { colors } from '@/theme';
 import { actionsForStatus, buildTimeline } from './buildTimeline';
 import { JobChatComposer } from './JobChatComposer';
 import { JobChatHeader } from './JobChatHeader';
@@ -532,15 +532,10 @@ export function JobChatScreen({ jobId }: Props) {
               )}
               ListEmptyComponent={
                 showFallback ? (
-                  <View style={styles.emptyWrap}>
-                    <Text style={styles.emptyText}>
-                      Chat not seeded yet — TODO
-                    </Text>
-                    <Text style={styles.emptySubtext}>
-                      This job has no message history. Once the vendor
-                      flow lands, replies will appear here.
-                    </Text>
-                  </View>
+                  <EmptyState
+                    title="Chat not seeded yet — TODO"
+                    subtitle="This job has no message history. Once the vendor flow lands, replies will appear here."
+                  />
                 ) : null
               }
               contentContainerStyle={styles.listContent}
@@ -601,21 +596,5 @@ const styles = StyleSheet.create({
   },
   itemWrap: {
     marginVertical: 4,
-  },
-  emptyWrap: {
-    paddingVertical: 48,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    gap: 8,
-  },
-  emptyText: {
-    ...typography.bodyBold,
-    color: colors.text.secondary,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    ...typography.bodySmall,
-    color: colors.text.tertiary,
-    textAlign: 'center',
   },
 });

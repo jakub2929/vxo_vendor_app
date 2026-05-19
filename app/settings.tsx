@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import * as Application from 'expo-application';
 import { useRouter } from 'expo-router';
 import { GradientHeader } from '@/components/GradientHeader';
 import {
@@ -21,13 +22,13 @@ import { colors } from '@/theme';
 // Header uses the shared back+title gradient pattern (Figma 4:10127), same
 // shell as Profile and Support detail screens.
 //
-// Two rows today:
+// Rows today:
 //   - Biometric toggle — conditional on PIN configured + device capable.
 //     Phase 2 addition; hidden entirely on devices without biometric.
 //   - Reset PIN — same wipe surface as the 5-fail lockout.
-//
-// TODO: future additions when designs land — notification preferences,
-// profile edit deep-link, Stripe Connect status, About / version info.
+//   - About — version + build number from expo-application (read at runtime,
+//     so EAS remote-versioned builds report the actual installed version, not
+//     a stale string from app.json).
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -167,6 +168,18 @@ export default function SettingsScreen() {
             next time you open the app.
           </Text>
         </Pressable>
+
+        <Text style={styles.sectionTitle}>About</Text>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Version</Text>
+          <Text style={styles.cardBody}>
+            {Application.nativeApplicationVersion ?? 'unknown'}
+            {Application.nativeBuildVersion
+              ? ` (${Application.nativeBuildVersion})`
+              : ''}
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );

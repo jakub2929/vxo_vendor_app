@@ -413,8 +413,12 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      // Manually added pending the next `supabase gen types typescript` run.
-      // Source of truth: supabase/schema/add-job-transition-rpcs.sql.
+      // Hand-maintained. Regen by running (requires linked Supabase project):
+      //   supabase gen types typescript --linked > src/types/database.ts
+      // Source of truth for these RPC signatures lives in
+      // supabase/schema/add-job-transition-rpcs.sql,
+      // supabase/schema/add-complete-job-rpc.sql, and the invoice/quote
+      // RPC files in the same directory.
       accept_job: {
         Args: { p_job_id: string }
         Returns: Database['public']['Tables']['jobs']['Row'][]

@@ -150,6 +150,24 @@ Canonical design source: [VXO Vendor App V.1 Final (Figma)](https://www.figma.co
 
 Figma pull scripts (icons / screens / tokens / manifest / emoji / inventory) are in [`scripts/`](scripts/) and exposed via `npm run figma:*`.
 
+## Phase 4 status
+
+In progress. Recently shipped:
+
+- Shared `EmptyState` + `Skeleton` primitives ([src/components/EmptyState.tsx](src/components/EmptyState.tsx), [src/components/Skeleton.tsx](src/components/Skeleton.tsx)) — replace three one-off empty states and two inline skeletons across Home, Search, Profile, and JobChat.
+- Version info in Settings — `Application.nativeApplicationVersion` + `nativeBuildVersion` from `expo-application`, read at runtime so EAS remote-versioned builds report the actual installed version ([app/settings.tsx](app/settings.tsx)).
+- `LICENSE` file at repo root (proprietary, per VXO AI LLC subcontract).
+- Welcome-screen padding fix on `JobsWelcome` (Phase 3 carryover: `paddingVertical` / `gap` reduced from 60 → 32).
+
+Pending:
+
+- **Stripe Connect** — onboarding WebView blocked on backend account-link endpoint ([ChatsScreen.tsx:41](src/features/chats/ChatsScreen.tsx:41)).
+- **Notification preferences UI** — blocked on schema design call with Ryan.
+- **Account deletion flow** — blocked on soft-vs-hard delete decision.
+- **Privacy policy + EULA URL links** — pending policy URLs.
+- **E2E testing** — blocked on FCM server key + iOS Distribution Cert (carried from Phase 1).
+- **`supabase gen types typescript`** — `src/types/database.ts` Functions block is still hand-maintained; regen on next CLI session (see comment in file).
+
 ## Open external dependencies
 
 State as of 2026-05-18 — verify before relying on:

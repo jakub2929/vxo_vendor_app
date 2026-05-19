@@ -23,7 +23,9 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { EmptyState } from '@/components/EmptyState';
 import { GradientHeader } from '@/components/GradientHeader';
+import { Skeleton } from '@/components/Skeleton';
 import type { ChatSender } from '@/features/chat/types';
 import {
   formatRowTimestamp,
@@ -126,25 +128,25 @@ export function SearchScreen() {
           keyboardDismissMode="on-drag"
         >
           {showHint && (
-            <EmptyMessage
+            <EmptyState
               title="Type to search"
-              body="Search across your jobs and messages. Job number, address, trade, client name, or any word from a chat."
+              subtitle="Search across your jobs and messages. Job number, address, trade, client name, or any word from a chat."
             />
           )}
 
-          {showSkeleton && <Skeleton />}
+          {showSkeleton && <SearchSkeleton />}
 
           {isError && queryActive && !isFetching && (
-            <EmptyMessage
+            <EmptyState
               title="Couldn't search"
-              body="Something went wrong. Check your connection and try again."
+              subtitle="Something went wrong. Check your connection and try again."
             />
           )}
 
           {showNoResults && (
-            <EmptyMessage
+            <EmptyState
               title="Nothing matches that"
-              body={`Try a different job number, address, or message text. We searched for "${trimmed}".`}
+              subtitle={`Try a different job number, address, or message text. We searched for "${trimmed}".`}
             />
           )}
 
@@ -269,22 +271,13 @@ function formatSenderLabel(sender: ChatSender): string {
   }
 }
 
-function EmptyMessage({ title, body }: { title: string; body: string }) {
-  return (
-    <View style={styles.emptyWrap}>
-      <Text style={styles.emptyTitle}>{title}</Text>
-      <Text style={styles.emptyBody}>{body}</Text>
-    </View>
-  );
-}
-
-function Skeleton() {
+function SearchSkeleton() {
   return (
     <View style={styles.section}>
-      <View style={skel.headerBar} />
-      <View style={skel.row} />
-      <View style={skel.row} />
-      <View style={skel.row} />
+      <Skeleton width={100} height={16} borderRadius={4} />
+      <Skeleton height={64} borderRadius={12} />
+      <Skeleton height={64} borderRadius={12} />
+      <Skeleton height={64} borderRadius={12} />
     </View>
   );
 }
@@ -373,41 +366,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18.2,
     color: colors.text.tertiary,
-  },
-  emptyWrap: {
-    paddingTop: 24,
-    gap: 8,
-    alignItems: 'center',
-  },
-  emptyTitle: {
-    fontFamily: 'Urbanist-Bold',
-    fontWeight: '700',
-    fontSize: 18,
-    lineHeight: 25.2,
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  emptyBody: {
-    fontFamily: 'Urbanist-Medium',
-    fontWeight: '500',
-    fontSize: 14,
-    lineHeight: 19.6,
-    letterSpacing: 0.2,
-    color: colors.text.bodyAlt,
-    textAlign: 'center',
-  },
-});
-
-const skel = StyleSheet.create({
-  headerBar: {
-    width: 100,
-    height: 16,
-    borderRadius: 4,
-    backgroundColor: colors.divider.soft,
-  },
-  row: {
-    height: 64,
-    borderRadius: 12,
-    backgroundColor: colors.divider.soft,
   },
 });

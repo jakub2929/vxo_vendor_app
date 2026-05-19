@@ -135,8 +135,8 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 60,
-    paddingVertical: 60,
+    gap: 32,
+    paddingVertical: 32,
   },
   titleBlock: {
     width: '100%',

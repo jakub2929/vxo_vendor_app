@@ -1,6 +1,6 @@
 # Progress — VXO Vendor App
 
-Working document tracking Phase 1 → Phase 3 deliverables. Last updated: 2026-05-19.
+Working document tracking Phase 1 → Phase 4 deliverables. Last updated: 2026-05-19.
 
 ## Phase 1 — Auth, Onboarding, Profile (Week 1)
 
@@ -97,7 +97,7 @@ Working document tracking Phase 1 → Phase 3 deliverables. Last updated: 2026-0
 - **Quote → Invoice conversion** — blocked on Ryan's RPC side (`convert_quote_to_invoice` or equivalent). Client surface ready to wire as soon as RPC contract lands.
 - **ETA picker UI** — still blocked on Ryan's `accept_job` extension (carried over from Phase 2).
 
-## Phase 4 — Settings + payouts (Week 4 scope, ~30% surface plumbed)
+## Phase 4 — Settings + payouts (Week 4 scope, ~40% surface plumbed)
 
 ### Already in place
 
@@ -105,9 +105,22 @@ Working document tracking Phase 1 → Phase 3 deliverables. Last updated: 2026-0
 - **Settings shell** — `/settings` route mounts; menu rows pre-stubbed pending Phase 4 spec finalization.
 - **Stripe Connect placeholder** — `handleStripe` in ChatsScreen logs intent; awaiting backend endpoint to mint the account link before WebView wiring ([ChatsScreen.tsx:41-44](src/features/chats/ChatsScreen.tsx:41)).
 
-### Not started
+### Track F + G polish round (shipped 2026-05-19)
 
-(rest of Phase 4 scope — finalize as spec arrives)
+- **Shared `EmptyState`** ([src/components/EmptyState.tsx](src/components/EmptyState.tsx)) — folds three one-off implementations into one: `HomeTab` "No jobs yet", `JobChatScreen` "Chat not seeded yet", and `SearchScreen`'s hint / no-results / error messages. `JobsWelcome` deliberately left alone — it's a marketing welcome with a 40pt brand title + primary CTA, not a generic empty state.
+- **Shared `Skeleton` / `SkeletonText` / `SkeletonCard` / `SkeletonRow`** ([src/components/Skeleton.tsx](src/components/Skeleton.tsx)) — animated opacity pulse (0.4 ↔ 0.8, 700ms ease in/out, native-driver). Replaces inline static skeletons in `HomeTab` and `SearchScreen`, and upgrades `ProfileScreen`'s plain "Loading…" to a four-card + avatar skeleton.
+- **Settings → About / Version** ([app/settings.tsx](app/settings.tsx)) — `Application.nativeApplicationVersion` + `nativeBuildVersion` from `expo-application` (now an explicit dep). Reads at runtime so EAS remote-versioned builds report the actual installed version, not a stale `app.json` string. TODO comment removed.
+- **`JobsWelcome` padding fix** ([ChatsScreen.tsx:138-139](src/features/chats/ChatsScreen.tsx:138)) — Phase 3 carryover: `paddingVertical` / `gap` 60 → 32.
+- **LICENSE** — proprietary boilerplate at repo root per VXO AI LLC subcontract.
+- **`database.ts` Functions comment refresh** — replaced "manually added pending next gen run" note with the actual regen command (`supabase gen types typescript --linked > src/types/database.ts`) and a pointer to the SQL source files. File contents unchanged — needs a CLI session with a linked project to actually regen.
+
+### Not started (Phase 4 outstanding scope)
+
+- Stripe Connect onboarding WebView (blocked on backend account-link endpoint)
+- Notification preferences UI (blocked on schema design call with Ryan)
+- Account deletion flow (blocked on soft vs hard delete decision)
+- Privacy policy + EULA URL links (pending policy URLs)
+- E2E testing (blocked on FCM key + iOS Distribution Cert)
 
 ## Known issues / minor
 

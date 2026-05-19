@@ -5,9 +5,10 @@ import {
   RefreshControl,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+import { EmptyState } from '@/components/EmptyState';
+import { SkeletonRow } from '@/components/Skeleton';
 import { PaidInvoicesSection } from '@/features/earnings/PaidInvoicesSection';
 import { PendingInvoicesSection } from '@/features/earnings/PendingInvoicesSection';
 import { PendingQuotesSection } from '@/features/earnings/PendingQuotesSection';
@@ -109,7 +110,10 @@ export function HomeTab({ vendorId }: Props) {
             <SkeletonRow />
           </>
         ) : isEmpty ? (
-          <EmptyHome />
+          <EmptyState
+            title="No jobs yet 👋"
+            subtitle="Your earnings and recent jobs will show up here once your first dispatch comes in."
+          />
         ) : (
           recent.data?.map((job) => (
             <HomeJobRow key={job.jobId} job={job} />
@@ -121,30 +125,6 @@ export function HomeTab({ vendorId }: Props) {
         <HomePromoCard onPress={() => router.push('/learn-more')} />
       </View>
     </ScrollView>
-  );
-}
-
-function SkeletonRow() {
-  return (
-    <View style={skeletonStyles.card}>
-      <View style={skeletonStyles.avatar} />
-      <View style={skeletonStyles.content}>
-        <View style={skeletonStyles.titleBar} />
-        <View style={skeletonStyles.progressBar} />
-      </View>
-    </View>
-  );
-}
-
-function EmptyHome() {
-  return (
-    <View style={emptyStyles.container}>
-      <Text style={emptyStyles.title}>No jobs yet 👋</Text>
-      <Text style={emptyStyles.body}>
-        Your earnings and recent jobs will show up here once your first
-        dispatch comes in.
-      </Text>
-    </View>
   );
 }
 
@@ -178,63 +158,5 @@ const styles = StyleSheet.create({
   },
   promoWrap: {
     marginTop: 8,
-  },
-});
-
-const skeletonStyles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-    padding: 16,
-    backgroundColor: colors.surface.base,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.surface.base,
-  },
-  avatar: {
-    // Match real avatar outer size (HomeJobRow) so skeleton → data doesn't snap.
-    width: 75,
-    height: 75,
-    borderRadius: 1000,
-    backgroundColor: colors.divider.soft,
-  },
-  content: {
-    flex: 1,
-    gap: 8,
-  },
-  titleBar: {
-    height: 18,
-    borderRadius: 4,
-    backgroundColor: colors.divider.soft,
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 1000,
-    backgroundColor: colors.divider.soft,
-  },
-});
-
-const emptyStyles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    gap: 12,
-  },
-  title: {
-    fontFamily: 'Urbanist-Bold',
-    fontWeight: '700',
-    fontSize: 20,
-    color: colors.text.primary,
-    textAlign: 'center',
-  },
-  body: {
-    fontFamily: 'Urbanist-Regular',
-    fontWeight: '400',
-    fontSize: 14,
-    lineHeight: 22.4,
-    color: colors.text.secondary,
-    textAlign: 'center',
-    paddingHorizontal: 16,
   },
 });

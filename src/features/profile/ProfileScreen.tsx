@@ -41,6 +41,7 @@ import {
   type AttachmentSource,
 } from '@/components/AttachmentBottomSheet';
 import { GradientHeader } from '@/components/GradientHeader';
+import { Skeleton, SkeletonCard } from '@/components/Skeleton';
 import { AvatarPicker } from '@/features/profile/AvatarPicker';
 import {
   type Trade,
@@ -414,8 +415,17 @@ export function ProfileScreen() {
 
   if (loading && !vendor) {
     return (
-      <View style={styles.centered}>
-        <Text style={typography.body}>Loading…</Text>
+      <View style={styles.flex}>
+        <GradientHeader title="Profile" onBack={() => router.back()} />
+        <View style={styles.loadingWrap}>
+          <View style={styles.loadingAvatar}>
+            <Skeleton width={120} height={120} borderRadius={1000} />
+          </View>
+          <SkeletonCard height={56} />
+          <SkeletonCard height={56} />
+          <SkeletonCard height={56} />
+          <SkeletonCard height={96} />
+        </View>
       </View>
     );
   }
@@ -755,5 +765,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     gap: spacing.md,
     backgroundColor: colors.surface.base,
+  },
+  loadingWrap: {
+    paddingTop: 32,
+    paddingHorizontal: 24,
+    gap: 16,
+  },
+  loadingAvatar: {
+    alignSelf: 'center',
+    marginBottom: 8,
   },
 });
