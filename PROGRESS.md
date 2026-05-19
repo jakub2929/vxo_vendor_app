@@ -1,6 +1,6 @@
 # Progress — VXO Vendor App
 
-Working document tracking Phase 1 + Phase 2 deliverables. Last updated: 2026-05-18.
+Working document tracking Phase 1 + Phase 2 deliverables. Last updated: 2026-05-19.
 
 ## Phase 1 — Auth, Onboarding, Profile (Week 1)
 
@@ -72,7 +72,7 @@ Working document tracking Phase 1 + Phase 2 deliverables. Last updated: 2026-05-
   - BEFORE UPDATE trigger `vendor_status_change_guard` restricts status changes to `active <-> out_of_office` only (vendor self-promotion blocked)
   - BEFORE UPDATE trigger `vendor_email_immutable_guard` blocks email changes (RLS identity protection)
   - Both triggers bypass via service_role JWT for admin operations
-  - Awaiting dev apply on branch `hardening-vendors-rls`
+  - Applied on dev — verify on hardware that OOO toggle still works post-apply; pending prod apply by Ryan
 - **FillProfile pre-flight check** — detects existing vendor row via `maybeSingle()` before upsert; omits `status` from payload if row exists; prevents accidental `active → pending` revert that would trigger the new status guard ([FillProfile.tsx:293-326](src/components/FillProfile.tsx:293))
 
 ### Pending
@@ -110,4 +110,4 @@ Working document tracking Phase 1 + Phase 2 deliverables. Last updated: 2026-05-
 
 ---
 
-This file is updated as Phase work progresses. Last updated: 2026-05-18.
+This file is updated as Phase work progresses. Last updated: 2026-05-19.
