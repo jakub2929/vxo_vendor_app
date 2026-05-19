@@ -150,7 +150,11 @@ export default function QuoteBuilderRoute() {
               Quote — {jobNumber}
             </Text>
             {(clientFirstName || address) && (
-              <Text style={styles.clientLine}>
+              <Text
+                style={styles.clientLine}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {clientFirstName ? `👤 ${clientFirstName}` : ''}
                 {clientFirstName && address ? '  ·  ' : ''}
                 {address ? `📍 ${address}` : ''}

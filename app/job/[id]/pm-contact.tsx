@@ -119,7 +119,9 @@ export default function PmContactRoute() {
       <View style={styles.body}>
         <View style={styles.identity}>
           <PmAvatar name={pm.name} url={pm.avatar_url} />
-          <Text style={styles.name}>{pm.name}</Text>
+          <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+            {pm.name}
+          </Text>
           <Pressable
             onPress={dialPm}
             accessibilityRole="link"
