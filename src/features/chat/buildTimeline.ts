@@ -356,7 +356,7 @@ export function buildTimeline(
 // jobs.client_name stores the full name (e.g. "Sarah Mitchell"). The chat
 // surface only shows the first token — full identity stays out of the
 // vendor UI per the contract.
-function firstNameOf(name: string | null): string | null {
+export function firstNameOf(name: string | null): string | null {
   if (!name) return null;
   const first = name.trim().split(/\s+/)[0];
   return first && first.length > 0 ? first : null;

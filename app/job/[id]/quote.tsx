@@ -37,6 +37,8 @@ import {
   parseAmountSafe,
   type ItemDraft,
 } from '@/features/chat/LineItemsInput';
+import { firstNameOf } from '@/features/chat/buildTimeline';
+import { useJob } from '@/features/chat/useJobChat';
 import { USE_MOCKS } from '@/features/home/useHomeData';
 import { appendMockQuote } from '@/lib/mockChatState';
 import { supabase } from '@/lib/supabase';
@@ -78,6 +80,8 @@ export default function QuoteBuilderRoute() {
   // Default 7 days per Prompt 3 spec.
   const [expiresInDays, setExpiresInDays] = useState<number>(7);
   const [sending, setSending] = useState(false);
+
+  const { data: job } = useJob(id);
 
   if (!id) return <Redirect href="/(tabs)" />;
 
@@ -121,6 +125,8 @@ export default function QuoteBuilderRoute() {
 
   const jobNumber = formatJobNumber(id);
   const expiryDateLabel = formatExpiryDate(expiresInDays);
+  const clientFirstName = firstNameOf(job?.client_name ?? null);
+  const address = job?.address ?? null;
 
   return (
     <View style={styles.root}>
@@ -139,9 +145,18 @@ export default function QuoteBuilderRoute() {
           >
             <ArrowLeft color="#FFFFFF" size={28} />
           </Pressable>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            Quote for {jobNumber}
-          </Text>
+          <View style={styles.titleBlock}>
+            <Text style={styles.headerTitle} numberOfLines={1}>
+              Quote — {jobNumber}
+            </Text>
+            {(clientFirstName || address) && (
+              <Text style={styles.clientLine}>
+                {clientFirstName ? `👤 ${clientFirstName}` : ''}
+                {clientFirstName && address ? '  ·  ' : ''}
+                {address ? `📍 ${address}` : ''}
+              </Text>
+            )}
+          </View>
           <View style={styles.headerSpacer} />
         </View>
       </LinearGradient>
@@ -253,14 +268,23 @@ const styles = StyleSheet.create({
     gap: 12,
     minHeight: 48,
   },
+  titleBlock: { flex: 1, alignItems: 'center' },
   headerTitle: {
-    flex: 1,
     fontFamily: 'Urbanist-Bold',
     fontWeight: '700',
     fontSize: 18,
     lineHeight: 22,
     color: '#FFFFFF',
     textAlign: 'center',
+  },
+  clientLine: {
+    fontFamily: 'Urbanist-Medium',
+    fontWeight: '500',
+    fontSize: 14,
+    lineHeight: 19.6,
+    color: 'rgba(255,255,255,0.85)',
+    textAlign: 'center',
+    marginTop: 4,
   },
   headerSpacer: { width: 28 },
 
