@@ -8,6 +8,9 @@ import {
   Text,
   View,
 } from 'react-native';
+import { PaidInvoicesSection } from '@/features/earnings/PaidInvoicesSection';
+import { PendingInvoicesSection } from '@/features/earnings/PendingInvoicesSection';
+import { PendingQuotesSection } from '@/features/earnings/PendingQuotesSection';
 import { colors } from '@/theme';
 import { HomeJobRow } from './HomeJobRow';
 import { HomePromoCard } from './HomePromoCard';
@@ -35,11 +38,24 @@ export function HomeTab({ vendorId }: Props) {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await qc.invalidateQueries({ queryKey: ['home'] });
+      // Refresh both the home summary/stats/recent jobs and the three Earnings
+      // section queries in one pull. Promise.all keeps the spinner up until
+      // both invalidations resolve so the user doesn't release mid-refetch.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['home'] }),
+        qc.invalidateQueries({ queryKey: ['earnings'] }),
+      ]);
     } finally {
       setRefreshing(false);
     }
   }, [qc]);
+
+  const onPressEarningsCard = useCallback(
+    (jobId: string) => {
+      router.push(`/job/${jobId}`);
+    },
+    [router],
+  );
 
   const isLoading =
     summary.isLoading || stats.isLoading || recent.isLoading;
@@ -62,6 +78,21 @@ export function HomeTab({ vendorId }: Props) {
           jobsCount={summary.data?.jobsCount ?? 0}
           invoicesSent={stats.data?.invoicesSent ?? 0}
           invoicesPaid={stats.data?.invoicesPaid ?? 0}
+        />
+      </View>
+
+      <View style={styles.earningsWrap}>
+        <PendingInvoicesSection
+          vendorId={vendorId}
+          onPressCard={onPressEarningsCard}
+        />
+        <PaidInvoicesSection
+          vendorId={vendorId}
+          onPressCard={onPressEarningsCard}
+        />
+        <PendingQuotesSection
+          vendorId={vendorId}
+          onPressCard={onPressEarningsCard}
         />
       </View>
 
@@ -125,6 +156,13 @@ const styles = StyleSheet.create({
   },
   summaryWrap: {
     width: '100%',
+  },
+  earningsWrap: {
+    width: '100%',
+    // Section-to-section gap matches the parent ScrollView's gap (24) between
+    // summary → earnings → list, so all three large blocks read as evenly
+    // spaced. Inner section headers + card stacks use their own 12pt gaps.
+    gap: 24,
   },
   list: {
     width: '100%',

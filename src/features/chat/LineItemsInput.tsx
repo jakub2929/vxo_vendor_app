@@ -1,11 +1,13 @@
 // Shared line-items editor used by both the Invoice and Quote builder
 // screens. Controlled component: parent owns the items array and validation;
 // this file just renders the rows + add button and exposes the helpers
-// (normalizeAmount, parseAmountSafe, isItemValid, formatMoney) the parents
-// need to compute total + validity outside the component.
+// (normalizeAmount, parseAmountSafe, isItemValid) the parents need to compute
+// total + validity outside the component. formatMoney lives in @/utils/formatters
+// and is re-exported here so existing importers keep working.
 import { Plus, X } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { colors, typography } from '@/theme';
+export { formatMoney } from '@/utils/formatters';
 
 export type ItemDraft = { description: string; amount: string };
 
@@ -31,10 +33,6 @@ export function parseAmountSafe(s: string): number {
 
 export function isItemValid(it: ItemDraft): boolean {
   return it.description.trim().length > 0 && parseAmountSafe(it.amount) > 0;
-}
-
-export function formatMoney(n: number): string {
-  return `$${n.toFixed(2)}`;
 }
 
 type Props = {

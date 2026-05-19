@@ -27,6 +27,9 @@ export type HomeRecentJob = {
   invoiceStatus: InvoiceStatus | null;
   jobStatus: JobStatus;
   updatedAt: string;
+  // Client display name pulled from jobs.client_name. NULL when the dispatch
+  // row never had one set. Renderers should fall back to status-only.
+  clientName: string | null;
 };
 
 // In dev we return mocks. Real Supabase is hit only when:
@@ -78,21 +81,34 @@ export function useHomeSummary(vendorId: string | null | undefined) {
       const startIso = firstOfCurrentMonthISO();
 
       if (USE_MOCKS) {
-        const paid = mockInvoices.filter(
-          (inv) =>
-            inv.status === 'paid' && (inv.created_at ?? '') >= startIso,
-        );
+        const paid = mockInvoices.filter((inv) => {
+          if (inv.status !== 'paid') return false;
+          // Mock parity with the real query: prefer paid_at, fall back to
+          // updated_at when paid_at is unset on legacy/seed rows.
+          const ts =
+            (inv as { paid_at?: string | null }).paid_at ??
+            inv.updated_at ??
+            inv.created_at ??
+            '';
+          return ts >= startIso;
+        });
         const earned = paid.reduce((s, i) => s + (i.total ?? 0), 0);
         const jobs = new Set(paid.map((i) => i.job_id)).size;
         return { earnedThisMonth: earned, jobsCount: jobs };
       }
 
+      // "Earned this month" must filter by *when the invoice was paid*, not
+      // when it was created. The migration that added paid_at didn't backfill
+      // it (only sent_at was filled), so seed/legacy rows have paid_at NULL.
+      // The .or() expression covers both: a real timestamp >= startIso, or
+      // a NULL paid_at with updated_at >= startIso as the fallback. PostgREST
+      // doesn't support COALESCE inside .gte(), so .or() is the cleanest path.
       const { data, error } = await supabase
         .from('invoices')
         .select('total, job_id')
         .eq('vendor_id', vendorId as string)
         .eq('status', 'paid')
-        .gte('created_at', startIso);
+        .or(`paid_at.gte.${startIso},and(paid_at.is.null,updated_at.gte.${startIso})`);
       if (error) throw error;
       const earned = (data ?? []).reduce(
         (s, r) => s + toNum(r.total),
@@ -104,33 +120,62 @@ export function useHomeSummary(vendorId: string | null | undefined) {
   });
 }
 
+// "Sent" tile = total dispatched volume this month. Any invoice that ever
+// reached the client counts — once it moves to 'paid' / 'viewed' / 'overdue'
+// it's still "was sent", so the IN-list covers the full post-draft union
+// minus 'rejected' / 'cancelled' (those were retracted, not dispatched).
+const SENT_BUCKET = ['sent', 'viewed', 'approved', 'overdue', 'paid'];
+
 export function useHomeStats(vendorId: string | null | undefined) {
   return useQuery<HomeStats>({
-    queryKey: ['home', 'stats', vendorId],
+    queryKey: ['home', 'stats', vendorId, monthKey()],
     enabled: !!vendorId,
     queryFn: async () => {
+      const startIso = firstOfCurrentMonthISO();
+
       if (USE_MOCKS) {
         const sent = mockInvoices
-          .filter((i) => i.status === 'sent')
+          .filter((i) => {
+            if (!SENT_BUCKET.includes(i.status)) return false;
+            const ts =
+              (i as { sent_at?: string | null }).sent_at ??
+              i.created_at ??
+              '';
+            return ts >= startIso;
+          })
           .reduce((s, i) => s + (i.total ?? 0), 0);
         const paid = mockInvoices
-          .filter((i) => i.status === 'paid')
+          .filter((i) => {
+            if (i.status !== 'paid') return false;
+            const ts =
+              (i as { paid_at?: string | null }).paid_at ??
+              i.updated_at ??
+              i.created_at ??
+              '';
+            return ts >= startIso;
+          })
           .reduce((s, i) => s + (i.total ?? 0), 0);
         return { invoicesSent: sent, invoicesPaid: paid };
       }
 
-      // Per Phase 0 plan: 'Completed' tile = status='paid' only (Q4 decision).
+      // Both tiles are now month-scoped (was lifetime). "Sent" uses sent_at
+      // with a created_at fallback for rows that never had sent_at populated;
+      // the migration backfilled sent_at on legacy 'sent'/'approved'/'paid'/
+      // 'rejected' rows, so the fallback is mostly defensive. "Paid" uses
+      // paid_at with updated_at fallback for the seed-data NULL case.
       const [sentR, paidR] = await Promise.all([
         supabase
           .from('invoices')
           .select('total')
           .eq('vendor_id', vendorId as string)
-          .eq('status', 'sent'),
+          .in('status', SENT_BUCKET)
+          .or(`sent_at.gte.${startIso},and(sent_at.is.null,created_at.gte.${startIso})`),
         supabase
           .from('invoices')
           .select('total')
           .eq('vendor_id', vendorId as string)
-          .eq('status', 'paid'),
+          .eq('status', 'paid')
+          .or(`paid_at.gte.${startIso},and(paid_at.is.null,updated_at.gte.${startIso})`),
       ]);
       if (sentR.error) throw sentR.error;
       if (paidR.error) throw paidR.error;
@@ -173,13 +218,14 @@ export function useHomeRecentJobs(vendorId: string | null | undefined) {
             invoiceStatus: (latestInv?.status as InvoiceStatus | undefined) ?? null,
             jobStatus: j.status as JobStatus,
             updatedAt: j.updated_at ?? '',
+            clientName: j.client_name ?? null,
           };
         });
       }
 
       const { data: jobs, error: jobsErr } = await supabase
         .from('jobs')
-        .select('id, status, updated_at')
+        .select('id, status, updated_at, client_name')
         .eq('assigned_vendor_id', vendorId as string)
         .order('updated_at', { ascending: false })
         .limit(10);
@@ -216,6 +262,7 @@ export function useHomeRecentJobs(vendorId: string | null | undefined) {
           invoiceStatus: (inv?.status as InvoiceStatus | undefined) ?? null,
           jobStatus: j.status as JobStatus,
           updatedAt: j.updated_at ?? '',
+          clientName: j.client_name ?? null,
         };
       });
     },

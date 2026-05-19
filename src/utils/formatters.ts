@@ -29,3 +29,14 @@ export function formatPhoneInput(input: string): string {
 export function phoneDigitsOnly(formatted: string): string {
   return formatted.replace(/\D/g, '');
 }
+
+// USD display formatter. Two-decimal, leading "$", no thousands separator —
+// matches the existing pattern from the line-items editor + invoice bubble.
+// Negative inputs render as e.g. "$-25.00" (callers don't pass negatives, and
+// Intl.NumberFormat with currency style adds locale/spacing variance we don't
+// need for an in-app amount). Originally duplicated in
+// src/features/chat/LineItemsInput.tsx and JobChatTimelineItems.tsx — those
+// now import from here.
+export function formatMoney(n: number): string {
+  return `$${n.toFixed(2)}`;
+}

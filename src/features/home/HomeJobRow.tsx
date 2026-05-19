@@ -11,13 +11,29 @@ type Props = {
   job: HomeRecentJob;
 };
 
+// First-name extractor for the row subtitle. "Sarah M." → "Sarah",
+// "Sarah Miller" → "Sarah". Trims whitespace defensively; returns null
+// when the input is empty/all whitespace so the renderer can fall back to
+// status-only.
+function firstNameOf(full: string | null): string | null {
+  if (!full) return null;
+  const first = full.trim().split(/\s+/)[0] ?? '';
+  return first.length > 0 ? first : null;
+}
+
 // Figma nodes 4:10012 / 4:10014 / 4:10015 — the job list row.
 // Per Q5: same VXO avatar circle for every row. Trade-specific avatars are
 // deferred — see TODO. shortId is the display-ready job number (formatJobNumber).
+//
+// 2-line layout: Job# on top (bold primary), status + first-name on a muted
+// second line. Amount was previously in the title but is dropped now — the
+// earnings sections above this list already show per-invoice amounts, and
+// keeping it here overflowed standard mobile widths.
 export function HomeJobRow({ job }: Props) {
   const { label, emoji } = statusLabel(job.jobStatus, job.invoiceStatus);
   const { pct, fillColor } = progressBucket(job.jobStatus, job.invoiceStatus);
-  const amount = job.total != null ? `$${Math.round(job.total)}` : '—';
+  const firstName = firstNameOf(job.clientName);
+  const subtitle = firstName ? `${label} · ${firstName}` : label;
 
   return (
     <View style={styles.card}>
@@ -27,7 +43,10 @@ export function HomeJobRow({ job }: Props) {
       </View>
       <View style={styles.content}>
         <Text style={styles.title} numberOfLines={1} ellipsizeMode="tail">
-          {job.shortId} · {amount} · {label} {emoji}
+          {job.shortId}
+        </Text>
+        <Text style={styles.subtitle} numberOfLines={1} ellipsizeMode="tail">
+          {subtitle} {emoji}
         </Text>
         <View style={styles.progressTrack}>
           {fillColor && (
@@ -70,7 +89,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    gap: 8,
+    // Tight vertical rhythm: title → subtitle ~2pt, subtitle → progressbar
+    // gets its own marginTop below so the bar visually separates from text.
+    gap: 2,
   },
   title: {
     fontFamily: 'Urbanist-Bold',
@@ -80,7 +101,16 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     overflow: 'hidden',
   },
+  subtitle: {
+    fontFamily: 'Urbanist-Medium',
+    fontWeight: '500',
+    fontSize: 14,
+    lineHeight: 19.6,
+    letterSpacing: 0.2,
+    color: colors.text.bodyAlt,
+  },
   progressTrack: {
+    marginTop: 8,
     height: 8,
     width: '100%',
     borderRadius: 1000,

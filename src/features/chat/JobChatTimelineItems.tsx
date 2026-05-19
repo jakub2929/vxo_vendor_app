@@ -9,6 +9,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCheck, FileText } from 'lucide-react-native';
 import { formatDistance } from '@/lib/geo';
 import { colors, shadows, typography } from '@/theme';
+import { formatMoney } from '@/utils/formatters';
 import type {
   ActionCardSpec,
   ChatMessage,
@@ -419,10 +420,6 @@ const QUOTE_STATUS_BADGE: Record<string, BadgeStyle> = {
   expired:   { label: 'Expired',   bg: '#E0E0E0', fg: '#424242' },
   cancelled: { label: 'Cancelled', bg: '#E0E0E0', fg: '#424242' },
 };
-
-function formatMoney(n: number): string {
-  return `$${n.toFixed(2)}`;
-}
 
 function invoiceTimestamp(invoice: Invoice): string {
   const iso = invoice.sent_at ?? invoice.created_at;
