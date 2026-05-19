@@ -9,6 +9,10 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckCheck, FileText } from 'lucide-react-native';
 import { formatDistance } from '@/lib/geo';
 import { colors, shadows, typography } from '@/theme';
+import {
+  INVOICE_STATUS_BADGE,
+  QUOTE_STATUS_BADGE,
+} from '@/theme/invoiceStatusColors';
 import { formatMoney } from '@/utils/formatters';
 import type {
   ActionCardSpec,
@@ -394,32 +398,6 @@ export function ActionCardRow({
 // One card per invoice OR quote (both stored in the invoices table; kind
 // branches presentation). Card always shows everything (total, status,
 // items, notes, timestamp) — no tap-to-expand or separate detail screen.
-
-type BadgeStyle = { label: string; bg: string; fg: string };
-
-const INVOICE_STATUS_BADGE: Record<string, BadgeStyle> = {
-  draft:     { label: 'Draft',     bg: '#E0E0E0', fg: '#424242' },
-  sent:      { label: 'Sent',      bg: '#E3F2FD', fg: '#1565C0' },
-  viewed:    { label: 'Viewed',    bg: '#E3F2FD', fg: '#1565C0' },
-  approved:  { label: 'Approved',  bg: '#E8F5E9', fg: '#2E7D32' },
-  paid:      { label: 'Paid ✓',    bg: '#E8F5E9', fg: '#2E7D32' },
-  overdue:   { label: 'Overdue',   bg: '#FFEBEE', fg: '#C62828' },
-  rejected:  { label: 'Declined',  bg: '#FFEBEE', fg: '#C62828' },
-  cancelled: { label: 'Cancelled', bg: '#E0E0E0', fg: '#424242' },
-};
-
-// Quote uses yellow/orange "Pending" while waiting on the client; green
-// "Accepted ✓" after they accept; gray "Expired" once valid_until passes.
-const QUOTE_STATUS_BADGE: Record<string, BadgeStyle> = {
-  draft:     { label: 'Draft',     bg: '#E0E0E0', fg: '#424242' },
-  sent:      { label: 'Pending',   bg: '#FFF3E0', fg: '#E65100' },
-  viewed:    { label: 'Pending',   bg: '#FFF3E0', fg: '#E65100' },
-  accepted:  { label: 'Accepted ✓', bg: '#E8F5E9', fg: '#2E7D32' },
-  approved:  { label: 'Accepted ✓', bg: '#E8F5E9', fg: '#2E7D32' },
-  rejected:  { label: 'Declined',  bg: '#FFEBEE', fg: '#C62828' },
-  expired:   { label: 'Expired',   bg: '#E0E0E0', fg: '#424242' },
-  cancelled: { label: 'Cancelled', bg: '#E0E0E0', fg: '#424242' },
-};
 
 function invoiceTimestamp(invoice: Invoice): string {
   const iso = invoice.sent_at ?? invoice.created_at;

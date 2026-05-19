@@ -1,6 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { VXOMascot } from '@/components/VXOMascot';
 import { colors } from '@/theme';
+import { INVOICE_AMOUNT_COLOR } from '@/theme/invoiceStatusColors';
 import { formatMoney } from '@/utils/formatters';
 import {
   progressBucket,
@@ -9,30 +10,9 @@ import {
   type InvoiceStatus,
 } from './useHomeData';
 
-// Hex values are the `fg` side of INVOICE_STATUS_BADGE / QUOTE_STATUS_BADGE
-// used by the chat invoice bubble and the earnings cards, so the same status
-// reads the same color across surfaces. Per Ryan's call (Phase 3):
-//   green   — money received or invoice commitment ('paid', 'approved')
-//   blue    — in flight / agreed but no money yet ('sent', 'viewed', 'accepted')
-//   red     — actionable, needs vendor follow-up ('overdue')
-//   gray    — terminal or pre-send, no action ('draft', 'rejected',
-//             'cancelled', 'expired')
-const STATUS_AMOUNT_COLOR: Record<InvoiceStatus, string> = {
-  paid: '#2E7D32',
-  approved: '#2E7D32',
-  sent: '#1565C0',
-  viewed: '#1565C0',
-  accepted: '#1565C0',
-  overdue: '#C62828',
-  draft: '#9E9E9E',
-  rejected: '#9E9E9E',
-  cancelled: '#9E9E9E',
-  expired: '#9E9E9E',
-};
-
 function amountColor(status: InvoiceStatus | null): string {
   if (!status) return colors.text.tertiary;
-  return STATUS_AMOUNT_COLOR[status] ?? colors.text.tertiary;
+  return INVOICE_AMOUNT_COLOR[status] ?? colors.text.tertiary;
 }
 
 type Props = {

@@ -1,6 +1,6 @@
 # Progress — VXO Vendor App
 
-Working document tracking Phase 1 + Phase 2 deliverables. Last updated: 2026-05-19.
+Working document tracking Phase 1 → Phase 3 deliverables. Last updated: 2026-05-19.
 
 ## Phase 1 — Auth, Onboarding, Profile (Week 1)
 
@@ -79,13 +79,35 @@ Working document tracking Phase 1 + Phase 2 deliverables. Last updated: 2026-05-
 
 - **`job_messages` RLS hardening** — vendor can currently INSERT with `sender='system'` (system-message spoof on the client-inserted "Arrived on site" path). Fix requires server-side RPC for arrival message + client refactor. Deferred pending Ryan's RPC change.
 
-## Phase 3 — Not started (Week 3 scope per contract)
+## Phase 3 — Earnings + Invoice/Quote builders (Week 3, ~90% complete)
 
-(intentionally empty for now — add as scope clarifies)
+### Shipped
 
-## Phase 4 — Not started (Week 4 scope per contract)
+- **Invoice + Quote builders** — vendor-side composers wired to `send_invoice` / `send_quote` RPCs, mock-aware ([app/job/[id]/invoice.tsx](app/job/[id]/invoice.tsx), [app/job/[id]/quote.tsx](app/job/[id]/quote.tsx)). Shared `LineItemsInput` component; quote adds preset-chip expiry row (7d / 14d / 30d / none).
+- **Client info in builder header** — full client first name + address rendered as subtitle below the title, formal em-dash heading copy. Uses `useJob(id)` shared with the chat screen (warm cache, no extra fetch). First-name-only per chat privacy contract; `firstNameOf` helper exported from `buildTimeline.ts` so all three consumer surfaces share it.
+- **Earnings sections in Home tab** — three sections (Paid invoices / Pending invoices / Pending quotes), per-section totals, drill-down on tap → job chat where the invoice/quote bubble lives. Pull-to-refresh invalidates the whole `'earnings'` key group ([src/features/earnings/](src/features/earnings/)).
+- **Month-scoped Home stats** — Home summary card shows "earned this month" + "jobs count this month" ([useHomeData.ts](src/features/home/useHomeData.ts)).
+- **2-line `HomeJobRow`** — Job# (bold primary) + status + first-name on a muted second line; amount color reflects invoice status (green/blue/red/gray per Ryan's palette). Amount dropped from the title to avoid overflow on standard mobile widths.
+- **`useInvoicesRealtime` hook** — invoices stripped out of `useHomeRealtime` into a dedicated channel; lets invoice cache invalidate independently of jobs ([useInvoicesRealtime.ts](src/features/realtime/useInvoicesRealtime.ts)).
+- **Aggregation fixes** — Home + Jobs paddingBottom no longer stacks on SafeAreaView inset; latest-invoice amount surfaced on each HomeJobRow.
+- **Shared invoice status colors** — three palettes consolidated into [src/theme/invoiceStatusColors.ts](src/theme/invoiceStatusColors.ts) (`INVOICE_STATUS_BADGE`, `QUOTE_STATUS_BADGE`, `INVOICE_AMOUNT_COLOR`); chat bubble, earnings card, and home row all import from there. Tables intentionally separate — they encode different design intents (loud badge red vs. soft row gray for terminal states) but live side-by-side for visibility.
 
-(intentionally empty for now — add as scope clarifies)
+### Pending (external dependencies)
+
+- **Quote → Invoice conversion** — blocked on Ryan's RPC side (`convert_quote_to_invoice` or equivalent). Client surface ready to wire as soon as RPC contract lands.
+- **ETA picker UI** — still blocked on Ryan's `accept_job` extension (carried over from Phase 2).
+
+## Phase 4 — Settings + payouts (Week 4 scope, ~30% surface plumbed)
+
+### Already in place
+
+- **Sign-out** — wired via `MoreMenu` in ChatsHeader ([src/features/chats/MoreMenu.tsx](src/features/chats/MoreMenu.tsx)); session cleared from SecureStore + push token revoked.
+- **Settings shell** — `/settings` route mounts; menu rows pre-stubbed pending Phase 4 spec finalization.
+- **Stripe Connect placeholder** — `handleStripe` in ChatsScreen logs intent; awaiting backend endpoint to mint the account link before WebView wiring ([ChatsScreen.tsx:41-44](src/features/chats/ChatsScreen.tsx:41)).
+
+### Not started
+
+(rest of Phase 4 scope — finalize as spec arrives)
 
 ## Known issues / minor
 

@@ -24,7 +24,7 @@ import { useJobsList } from './useJobsList';
 // "Home" tab body is Figma frame 4:9982 — see src/features/home/.
 export function ChatsScreen() {
   const { vendor } = useVendor();
-  const [activeTab, setActiveTab] = useState<ChatsTab>('chats');
+  const [activeTab, setActiveTab] = useState<ChatsTab>('jobs');
   const [menuVisible, setMenuVisible] = useState(false);
   // Tab strip count badge — uses the same query result that powers the list,
   // so the cache is shared and the number updates with Realtime invalidations.
@@ -63,7 +63,7 @@ export function ChatsScreen() {
             />
           }
         />
-        {activeTab === 'chats' ? (
+        {activeTab === 'jobs' ? (
           <>
             {vendor?.status === 'pending' && <PendingStatusBanner />}
             {vendor?.status === 'out_of_office' && <OOOBanner vendor={vendor} />}

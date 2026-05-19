@@ -3,41 +3,18 @@
 // Tap → drill into the existing job chat where the invoice/quote bubble lives
 // in the timeline (no dedicated view-existing screen yet).
 //
-// Status pill palette mirrors INVOICE_STATUS_BADGE / QUOTE_STATUS_BADGE from
-// src/features/chat/JobChatTimelineItems.tsx so the same status reads the
-// same color whether you see it on the chat timeline or here. Kept as a
-// local table (rather than importing) because that file's tables are
-// internal to the bubble renderer and exporting them would pull the badge
-// into the public surface of JobChatTimelineItems.
+// Status pill palette comes from @/theme/invoiceStatusColors so the same
+// status reads the same color whether you see it on the chat timeline,
+// the earnings tab, or the home recent-jobs list.
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/theme';
+import {
+  INVOICE_STATUS_BADGE,
+  QUOTE_STATUS_BADGE,
+} from '@/theme/invoiceStatusColors';
 import { formatJobNumber, formatMoney } from '@/utils/formatters';
 import type { EarningsRow } from './types';
 import { toMoney } from './types';
-
-type BadgeStyle = { label: string; bg: string; fg: string };
-
-const INVOICE_STATUS_BADGE: Record<string, BadgeStyle> = {
-  draft: { label: 'Draft', bg: '#E0E0E0', fg: '#424242' },
-  sent: { label: 'Sent', bg: '#E3F2FD', fg: '#1565C0' },
-  viewed: { label: 'Viewed', bg: '#E3F2FD', fg: '#1565C0' },
-  approved: { label: 'Approved', bg: '#E8F5E9', fg: '#2E7D32' },
-  paid: { label: 'Paid ✓', bg: '#E8F5E9', fg: '#2E7D32' },
-  overdue: { label: 'Overdue', bg: '#FFEBEE', fg: '#C62828' },
-  rejected: { label: 'Declined', bg: '#FFEBEE', fg: '#C62828' },
-  cancelled: { label: 'Cancelled', bg: '#E0E0E0', fg: '#424242' },
-};
-
-const QUOTE_STATUS_BADGE: Record<string, BadgeStyle> = {
-  draft: { label: 'Draft', bg: '#E0E0E0', fg: '#424242' },
-  sent: { label: 'Pending', bg: '#FFF3E0', fg: '#E65100' },
-  viewed: { label: 'Pending', bg: '#FFF3E0', fg: '#E65100' },
-  accepted: { label: 'Accepted ✓', bg: '#E8F5E9', fg: '#2E7D32' },
-  approved: { label: 'Accepted ✓', bg: '#E8F5E9', fg: '#2E7D32' },
-  rejected: { label: 'Declined', bg: '#FFEBEE', fg: '#C62828' },
-  expired: { label: 'Expired', bg: '#E0E0E0', fg: '#424242' },
-  cancelled: { label: 'Cancelled', bg: '#E0E0E0', fg: '#424242' },
-};
 
 // Which timestamp to display per section. For pending: when it was sent.
 // For paid: when it was paid. The pending-quotes section also uses sent_at.

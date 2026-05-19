@@ -23,7 +23,7 @@ export function LearnMoreScreen() {
         onBack={() => router.back()}
         tabs={
           <ChatsTabStrip
-            active="status"
+            active="home"
             // Decorative on detail screens — tapping a tab here would be
             // confusing UX. Figma has no prototype links on the strip.
             onChange={() => {}}

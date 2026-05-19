@@ -1,6 +1,8 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-export type ChatsTab = 'chats' | 'status';
+// Type values match the UI labels (Jobs / Home). Component / file names
+// still read "Chats…" — legacy naming, separate refactor.
+export type ChatsTab = 'jobs' | 'home';
 
 type Props = {
   active: ChatsTab;
@@ -18,14 +20,14 @@ export function ChatsTabStrip({ active, onChange, jobsCount }: Props) {
     <View style={styles.container}>
       <TabButton
         label="Jobs"
-        isActive={active === 'chats'}
-        onPress={() => onChange('chats')}
+        isActive={active === 'jobs'}
+        onPress={() => onChange('jobs')}
         badgeCount={jobsCount}
       />
       <TabButton
         label="Home"
-        isActive={active === 'status'}
-        onPress={() => onChange('status')}
+        isActive={active === 'home'}
+        onPress={() => onChange('home')}
       />
     </View>
   );
