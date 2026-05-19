@@ -11,6 +11,7 @@ import {
 import { PaidInvoicesSection } from '@/features/earnings/PaidInvoicesSection';
 import { PendingInvoicesSection } from '@/features/earnings/PendingInvoicesSection';
 import { PendingQuotesSection } from '@/features/earnings/PendingQuotesSection';
+import { useInvoicesRealtime } from '@/hooks/useInvoicesRealtime';
 import { colors } from '@/theme';
 import { HomeJobRow } from './HomeJobRow';
 import { HomePromoCard } from './HomePromoCard';
@@ -33,6 +34,10 @@ export function HomeTab({ vendorId }: Props) {
   const stats = useHomeStats(vendorId);
   const recent = useHomeRecentJobs(vendorId);
   useHomeRealtime(vendorId);
+  // Invoice events have their own hook so a single subscription owns toasts
+  // (paid / accepted / overdue) and invalidates both ['home'] and ['earnings'].
+  // useHomeRealtime above now covers jobs only.
+  useInvoicesRealtime();
 
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
