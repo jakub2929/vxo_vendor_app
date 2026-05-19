@@ -155,7 +155,10 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingTop: 24,
-    paddingBottom: 36,
+    // Bottom inset is provided by ChatsScreen's SafeAreaView edges={['bottom']}
+    // — no additional padding here, otherwise the home-indicator inset stacks
+    // with this and reads as a leftover-tab-bar strip below the promo card.
+    paddingBottom: 0,
     paddingHorizontal: 24,
     gap: 24,
   },

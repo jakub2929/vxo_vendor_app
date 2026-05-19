@@ -109,7 +109,10 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 24,
     paddingTop: 24,
-    paddingBottom: 24,
+    // Bottom inset is provided by ChatsScreen's SafeAreaView edges={['bottom']}
+    // — no additional padding here, otherwise the home-indicator inset stacks
+    // with this and reads as a leftover-tab-bar strip below the last row.
+    paddingBottom: 0,
   },
   rowGap: {
     height: 24,
