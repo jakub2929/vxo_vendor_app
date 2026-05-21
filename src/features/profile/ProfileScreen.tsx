@@ -27,6 +27,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -34,7 +35,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { Calendar, Mail } from 'lucide-react-native';
+import { Calendar, Mail, Minus, Plus, Star } from 'lucide-react-native';
 import { z } from 'zod';
 import {
   AttachmentBottomSheet,
@@ -49,6 +50,7 @@ import {
   tradesToLabel,
 } from '@/features/profile/TradeServicesPicker';
 import { UploadField } from '@/features/profile/UploadField';
+import { useVendorJobsCompleted } from '@/features/profile/useVendorJobsCompleted';
 import { useVendor } from '@/hooks/useVendor';
 import { supabase } from '@/lib/supabase';
 import { setCachedVendor } from '@/lib/vendorCache';
@@ -97,6 +99,12 @@ const schema = z.object({
   address: z.string().trim().min(3, 'Address is required'),
   zip_code: z.string().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code'),
   about: z.string().optional(),
+  insured: z.boolean(),
+  radius_miles: z
+    .number()
+    .int('Whole miles only')
+    .min(5, 'Min 5 miles')
+    .max(100, 'Max 100 miles'),
   avatar: assetSchema,
   coi: assetSchema,
   w9: assetSchema,
@@ -115,6 +123,8 @@ function parseTrades(raw: unknown): Trade[] {
 
 export function ProfileScreen() {
   const { vendor, loading, refresh } = useVendor();
+  const { data: jobsCompleted, isLoading: jobsCompletedLoading } =
+    useVendorJobsCompleted(vendor?.id);
   const [submitting, setSubmitting] = useState(false);
   const [sheetVisible, setSheetVisible] = useState(false);
   const [uploadTarget, setUploadTarget] = useState<UploadTarget | null>(null);
@@ -137,6 +147,8 @@ export function ProfileScreen() {
       address: '',
       zip_code: '',
       about: '',
+      insured: false,
+      radius_miles: 25,
       avatar: undefined,
       coi: undefined,
       w9: undefined,
@@ -159,6 +171,8 @@ export function ProfileScreen() {
       address: vendor.address ?? '',
       zip_code: vendor.zip_code ?? '',
       about: vendor.bio ?? '',
+      insured: vendor.insured ?? false,
+      radius_miles: vendor.radius_miles ?? 25,
       avatar: undefined,
       coi: undefined,
       w9: undefined,
@@ -343,6 +357,8 @@ export function ProfileScreen() {
         address: values.address.trim(),
         zip_code: values.zip_code,
         bio: values.about ?? null,
+        insured: values.insured,
+        radius_miles: values.radius_miles,
       };
       if (avatarRes.status === 'fulfilled' && avatarRes.value) {
         patch.avatar_path = avatarRes.value;
@@ -465,6 +481,11 @@ export function ProfileScreen() {
             uri={avatarUri}
             onPress={() => openSheetFor('avatar')}
           />
+          <RatingRow
+            rating={vendor.rating}
+            jobsCompleted={jobsCompleted}
+            jobsCompletedLoading={jobsCompletedLoading}
+          />
         </View>
 
         <View style={styles.fields}>
@@ -566,6 +587,18 @@ export function ProfileScreen() {
 
           <Controller
             control={control}
+            name="radius_miles"
+            render={({ field: { value, onChange } }) => (
+              <RadiusStepper
+                value={value}
+                onChange={onChange}
+                error={errors.radius_miles?.message}
+              />
+            )}
+          />
+
+          <Controller
+            control={control}
             name="businessName"
             render={({ field: { value, onChange, onBlur } }) => (
               <FieldShell error={errors.businessName?.message}>
@@ -610,6 +643,14 @@ export function ProfileScreen() {
                   textAlignVertical="top"
                 />
               </FieldShell>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="insured"
+            render={({ field: { value, onChange } }) => (
+              <InsuredToggle value={value} onChange={onChange} />
             )}
           />
 
@@ -672,6 +713,114 @@ function FieldShell({
     <View>
       <View style={[styles.field, multiline && styles.fieldMultiline]}>{children}</View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
+// Read-only star rating + numeric + job count under the avatar. Star icon
+// uses colors.status.warning (#fbbc05) since that's the canonical "amber"
+// in the theme — brand.primary blue reads wrong for stars.
+function RatingRow({
+  rating,
+  jobsCompleted,
+  jobsCompletedLoading,
+}: {
+  rating: number | null | undefined;
+  jobsCompleted: number | undefined;
+  jobsCompletedLoading: boolean;
+}) {
+  if (rating == null) {
+    return <Text style={styles.ratingEmpty}>No ratings yet</Text>;
+  }
+  const rounded = Math.round(rating);
+  // While the count query is in flight, hide the "(N jobs)" suffix entirely
+  // — better than showing "(0 jobs)" then snapping to the real number.
+  let countSuffix = '';
+  if (!jobsCompletedLoading && jobsCompleted !== undefined) {
+    countSuffix =
+      jobsCompleted === 0 ? ' (no jobs yet)' : ` (${jobsCompleted} jobs)`;
+  }
+  return (
+    <View style={styles.ratingRow}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          size={16}
+          color={i <= rounded ? colors.status.warning : colors.divider.base}
+          fill={i <= rounded ? colors.status.warning : 'transparent'}
+        />
+      ))}
+      <Text style={styles.ratingText}>
+        {rating.toFixed(1)} / 5.0{countSuffix}
+      </Text>
+    </View>
+  );
+}
+
+function RadiusStepper({
+  value,
+  onChange,
+  error,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  error?: string;
+}) {
+  const dec = () => onChange(Math.max(5, value - 5));
+  const inc = () => onChange(Math.min(100, value + 5));
+  return (
+    <View>
+      <Text style={styles.fieldLabel}>Service area radius</Text>
+      <View style={styles.stepper}>
+        <Pressable
+          style={({ pressed }) => [styles.stepBtn, pressed && styles.stepBtnPressed]}
+          onPress={dec}
+          disabled={value <= 5}
+          accessibilityRole="button"
+          accessibilityLabel="Decrease radius"
+          accessibilityValue={{ text: `${value} miles` }}
+        >
+          <Minus size={20} color={colors.text.primary} />
+        </Pressable>
+        <Text style={styles.stepperValue}>{value} mi</Text>
+        <Pressable
+          style={({ pressed }) => [styles.stepBtn, pressed && styles.stepBtnPressed]}
+          onPress={inc}
+          disabled={value >= 100}
+          accessibilityRole="button"
+          accessibilityLabel="Increase radius"
+          accessibilityValue={{ text: `${value} miles` }}
+        >
+          <Plus size={20} color={colors.text.primary} />
+        </Pressable>
+      </View>
+      <Text style={styles.helper}>How far you’ll accept jobs (miles)</Text>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
+function InsuredToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (b: boolean) => void;
+}) {
+  return (
+    <View style={styles.toggleRow}>
+      <View style={styles.toggleText}>
+        <Text style={styles.fieldLabel}>I am insured</Text>
+        <Text style={styles.helper}>Required for many job assignments</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: colors.divider.soft, true: colors.brand.primary }}
+        thumbColor="#ffffff"
+        ios_backgroundColor={colors.divider.soft}
+        accessibilityLabel="Insured"
+      />
     </View>
   );
 }
@@ -774,5 +923,74 @@ const styles = StyleSheet.create({
   loadingAvatar: {
     alignSelf: 'center',
     marginBottom: 8,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+  },
+  ratingText: {
+    ...typography.bodySmall,
+    color: colors.text.secondary,
+    marginLeft: 6,
+  },
+  ratingEmpty: {
+    ...typography.caption,
+    color: colors.text.tertiary,
+    marginTop: 8,
+  },
+  fieldLabel: {
+    ...typography.bodySmall,
+    fontFamily: 'Urbanist-SemiBold',
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: 6,
+  },
+  helper: {
+    ...typography.caption,
+    color: colors.text.tertiary,
+    marginTop: 6,
+  },
+  stepper: {
+    minHeight: 56,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.mutedAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stepBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.base,
+  },
+  stepBtnPressed: {
+    opacity: 0.6,
+  },
+  stepperValue: {
+    ...typography.body,
+    fontFamily: 'Urbanist-SemiBold',
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  toggleRow: {
+    minHeight: 56,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.mutedAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  toggleText: {
+    flex: 1,
+    gap: 2,
   },
 });

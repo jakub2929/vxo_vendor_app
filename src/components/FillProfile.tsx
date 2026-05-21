@@ -24,13 +24,14 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { Calendar, CheckCircle2, ChevronLeft, Mail } from 'lucide-react-native';
+import { Calendar, CheckCircle2, ChevronLeft, Mail, Minus, Plus } from 'lucide-react-native';
 import { z } from 'zod';
 import {
   AttachmentBottomSheet,
@@ -90,6 +91,12 @@ const schema = z.object({
   address: z.string().trim().min(3, 'Address is required'),
   zip_code: z.string().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code'),
   about: z.string().optional(),
+  insured: z.boolean(),
+  radius_miles: z
+    .number()
+    .int('Whole miles only')
+    .min(5, 'Min 5 miles')
+    .max(100, 'Max 100 miles'),
   avatar: assetSchema,
   coi: assetSchema,
   w9: assetSchema,
@@ -154,6 +161,8 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       address: '',
       zip_code: '',
       about: '',
+      insured: false,
+      radius_miles: 25,
     },
   });
 
@@ -313,6 +322,8 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
         phone: phoneDigitsOnly(values.phone),
         address: values.address.trim(),
         zip_code: values.zip_code,
+        insured: values.insured,
+        radius_miles: values.radius_miles,
         ...(existing ? {} : { status: 'pending' as const }),
       };
 
@@ -582,6 +593,18 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
                 </FieldShell>
               )}
             />
+
+            <Controller
+              control={control}
+              name="radius_miles"
+              render={({ field: { value, onChange } }) => (
+                <RadiusStepper
+                  value={value}
+                  onChange={onChange}
+                  error={errors.radius_miles?.message}
+                />
+              )}
+            />
           </View>
 
           <View style={styles.section}>
@@ -615,6 +638,14 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
                 <Calendar size={20} color={colors.text.tertiary} />
               </FieldShell>
             </Pressable>
+
+            <Controller
+              control={control}
+              name="insured"
+              render={({ field: { value, onChange } }) => (
+                <InsuredToggle value={value} onChange={onChange} />
+              )}
+            />
           </View>
 
           <UploadField
@@ -668,6 +699,78 @@ function FieldShell({
     <View>
       <View style={[styles.field, multiline && styles.fieldMultiline]}>{children}</View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
+// Mirror of the ProfileScreen stepper. Kept inline here (no shared component)
+// because the two screens are intentionally divergent — ProfileScreen edits a
+// vendors row already keyed by email, FillProfile is the upsert/onboarding
+// path. A shared component would couple them in a way we've otherwise avoided.
+function RadiusStepper({
+  value,
+  onChange,
+  error,
+}: {
+  value: number;
+  onChange: (n: number) => void;
+  error?: string;
+}) {
+  const dec = () => onChange(Math.max(5, value - 5));
+  const inc = () => onChange(Math.min(100, value + 5));
+  return (
+    <View>
+      <Text style={styles.fieldLabel}>Service area radius</Text>
+      <View style={styles.stepper}>
+        <Pressable
+          style={({ pressed }) => [styles.stepBtn, pressed && styles.stepBtnPressed]}
+          onPress={dec}
+          disabled={value <= 5}
+          accessibilityRole="button"
+          accessibilityLabel="Decrease radius"
+          accessibilityValue={{ text: `${value} miles` }}
+        >
+          <Minus size={20} color={colors.text.primary} />
+        </Pressable>
+        <Text style={styles.stepperValue}>{value} mi</Text>
+        <Pressable
+          style={({ pressed }) => [styles.stepBtn, pressed && styles.stepBtnPressed]}
+          onPress={inc}
+          disabled={value >= 100}
+          accessibilityRole="button"
+          accessibilityLabel="Increase radius"
+          accessibilityValue={{ text: `${value} miles` }}
+        >
+          <Plus size={20} color={colors.text.primary} />
+        </Pressable>
+      </View>
+      <Text style={styles.helper}>How far you’ll accept jobs (miles)</Text>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+    </View>
+  );
+}
+
+function InsuredToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (b: boolean) => void;
+}) {
+  return (
+    <View style={styles.toggleRow}>
+      <View style={styles.toggleText}>
+        <Text style={styles.fieldLabel}>I am insured</Text>
+        <Text style={styles.helper}>Required for many job assignments</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ false: colors.divider.soft, true: colors.brand.primary }}
+        thumbColor="#ffffff"
+        ios_backgroundColor={colors.divider.soft}
+        accessibilityLabel="Insured"
+      />
     </View>
   );
 }
@@ -793,5 +896,58 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     textAlign: 'center',
     maxWidth: 320,
+  },
+  fieldLabel: {
+    ...typography.bodySmall,
+    fontFamily: 'Urbanist-SemiBold',
+    fontWeight: '600',
+    color: colors.text.primary,
+    marginBottom: 6,
+  },
+  helper: {
+    ...typography.caption,
+    color: colors.text.tertiary,
+    marginTop: 6,
+  },
+  stepper: {
+    minHeight: 56,
+    paddingHorizontal: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.mutedAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  stepBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.surface.base,
+  },
+  stepBtnPressed: {
+    opacity: 0.6,
+  },
+  stepperValue: {
+    ...typography.body,
+    fontFamily: 'Urbanist-SemiBold',
+    fontWeight: '600',
+    color: colors.text.primary,
+  },
+  toggleRow: {
+    minHeight: 56,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface.mutedAlt,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  toggleText: {
+    flex: 1,
+    gap: 2,
   },
 });
