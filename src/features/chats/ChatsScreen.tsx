@@ -2,11 +2,16 @@
 // ("chats", "ChatsScreen") is legacy; rename in a future cleanup if it bothers anyone.
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useQueryClient } from '@tanstack/react-query';
+import { showToast } from '@/components/Toast';
 import { HomeTab } from '@/features/home/HomeTab';
 import { useVendor } from '@/hooks/useVendor';
 import { colors, shadows } from '@/theme';
+import type { Database } from '@/types/database';
+
+type Job = Database['public']['Tables']['jobs']['Row'];
 import { ChatsHeader } from './ChatsHeader';
 import { ChatsTabStrip, type ChatsTab } from './ChatsTabStrip';
 import { JobsListBody } from './JobsListBody';
@@ -70,7 +75,10 @@ export function ChatsScreen() {
             <JobsListBody
               vendorId={vendor?.id}
               emptyState={
-                <JobsWelcome pending={vendor?.status === 'pending'} />
+                <JobsWelcome
+                  pending={vendor?.status === 'pending'}
+                  vendorId={vendor?.id}
+                />
               }
               onRowPress={(jobId) => {
                 router.push(`/job/${jobId}`);
@@ -93,7 +101,51 @@ export function ChatsScreen() {
   );
 }
 
-function JobsWelcome({ pending = false }: { pending?: boolean }) {
+function JobsWelcome({
+  pending = false,
+  vendorId,
+}: {
+  pending?: boolean;
+  vendorId?: string | null;
+}) {
+  const qc = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const before = qc.getQueryData<Job[]>(['jobs', 'list', vendorId]) ?? [];
+      const beforeCount = before.length;
+
+      await qc.invalidateQueries({ queryKey: ['jobs'] });
+      await qc.refetchQueries({ queryKey: ['jobs'] });
+
+      const after = qc.getQueryData<Job[]>(['jobs', 'list', vendorId]) ?? [];
+      const afterCount = after.length;
+      const newJobsCount = afterCount - beforeCount;
+
+      if (newJobsCount > 0) {
+        showToast({
+          title: `Found ${newJobsCount} new job${newJobsCount > 1 ? 's' : ''}`,
+          body: 'Check your Jobs list',
+        });
+      } else {
+        showToast({
+          title: 'No new jobs yet',
+          body: 'Make sure your availability is ON and try again later',
+        });
+      }
+    } catch {
+      showToast({
+        title: 'Could not refresh',
+        body: 'Check your connection and try again',
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   return (
     <View style={styles.bodyContainer}>
       <View style={styles.bodyInner}>
@@ -102,18 +154,31 @@ function JobsWelcome({ pending = false }: { pending?: boolean }) {
           <Text style={styles.subtitle}>
             {pending
               ? "No jobs yet — they'll appear here once your account is approved."
-              : 'VXO AI connects you with Local Companies and Homeowners who need your Help!'}
+              : 'VXO AI connects you with local companies and homeowners who need your help.'}
           </Text>
         </View>
         {!pending && (
-          <Pressable
-            onPress={() => console.log('[ChatsScreen] accept first work order')}
-            style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Accept First your first Work Order"
-          >
-            <Text style={styles.ctaText}>Accept First your first Work Order</Text>
-          </Pressable>
+          <View style={styles.ctaGroup}>
+            <Pressable
+              onPress={onRefresh}
+              disabled={refreshing}
+              style={({ pressed }) => [
+                styles.cta,
+                (pressed || refreshing) && styles.ctaPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Accept your first Work Order"
+            >
+              {refreshing ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.ctaText}>Accept your first Work Order</Text>
+              )}
+            </Pressable>
+            <Text style={styles.hint}>
+              Make sure your availability is ON and your service area covers nearby work.
+            </Text>
+          </View>
         )}
       </View>
     </View>
@@ -178,6 +243,20 @@ const styles = StyleSheet.create({
     lineHeight: 22.4,
     letterSpacing: 0.2,
     color: '#ffffff',
+    textAlign: 'center',
+  },
+  ctaGroup: {
+    width: '100%',
+    gap: 12,
+    alignItems: 'stretch',
+  },
+  hint: {
+    fontFamily: 'Urbanist-Medium',
+    fontWeight: '500',
+    fontSize: 14,
+    lineHeight: 20,
+    letterSpacing: 0.2,
+    color: colors.text.tertiary,
     textAlign: 'center',
   },
 });

@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SvgXml } from 'react-native-svg';
-import { Button, Header, Screen, SocialButton } from '@/components';
+import { Button, Header, Screen } from '@/components';
 import { letsYouInIllustrationXml } from '@/assets/lets-you-in-illustration';
 import { colors, spacing, typography } from '@/theme';
 
@@ -26,35 +26,11 @@ export default function LetsYouInScreen() {
 
         <Text style={styles.title}>Let&apos;s you in</Text>
 
-        <View style={styles.socialGroup}>
-          <SocialButton
-            variant="facebook"
-            label="Continue with Facebook"
-            onPress={() => console.log('Facebook placeholder tapped')}
-          />
-          <SocialButton
-            variant="google"
-            label="Continue with Google"
-            onPress={() => console.log('Google placeholder tapped')}
-          />
-          <SocialButton
-            variant="apple"
-            label="Continue with Apple"
-            onPress={() => console.log('Apple placeholder tapped')}
-          />
-        </View>
-
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or</Text>
-          <View style={styles.dividerLine} />
-        </View>
+        <View style={styles.bottomSpacer} />
 
         <Button onPress={() => router.push('/(public)/login' as any)}>
           Sign in with Email
         </Button>
-
-        <View style={styles.bottomSpacer} />
 
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>Don&apos;t have an account?</Text>
@@ -88,28 +64,7 @@ const styles = StyleSheet.create({
     ...typography.display,
     color: colors.text.primary,
     textAlign: 'center',
-    marginBottom: spacing.lg,
-  },
-  socialGroup: {
-    gap: spacing.md,
-  },
-  dividerRow: {
-    marginVertical: spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: colors.divider.soft,
-  },
-  dividerText: {
-    ...typography.body,
-    fontFamily: 'Urbanist-SemiBold',
-    fontWeight: '600',
-    fontSize: 18,
-    color: colors.text.tertiary,
+    marginBottom: spacing.xl,
   },
   bottomSpacer: {
     flex: 1,
@@ -119,6 +74,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: spacing.sm,
+    marginTop: spacing.lg,
   },
   footerText: {
     ...typography.bodySmall,
