@@ -347,6 +347,10 @@ export type Database = {
           id: string
           insured: boolean | null
           name: string
+          // Phase 4 (add-vendor-notification-prefs.sql). Hand-typed until
+          // the next `supabase gen types` regen — TODO regen after that
+          // migration lands in prod.
+          notification_prefs: Json | null
           pay_preference: string | null
           phone: string | null
           radius_miles: number | null
@@ -371,6 +375,7 @@ export type Database = {
           id?: string
           insured?: boolean | null
           name: string
+          notification_prefs?: Json | null
           pay_preference?: string | null
           phone?: string | null
           radius_miles?: number | null
@@ -395,6 +400,7 @@ export type Database = {
           id?: string
           insured?: boolean | null
           name?: string
+          notification_prefs?: Json | null
           pay_preference?: string | null
           phone?: string | null
           radius_miles?: number | null

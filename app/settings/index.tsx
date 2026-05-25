@@ -169,6 +169,20 @@ export default function SettingsScreen() {
           </Text>
         </Pressable>
 
+        <Text style={styles.sectionTitle}>Notifications</Text>
+
+        <Pressable
+          onPress={() => router.push('/settings/notifications')}
+          style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Notification preferences"
+        >
+          <Text style={styles.cardTitle}>Notification preferences</Text>
+          <Text style={styles.cardBody}>
+            Choose which events send a push notification to your device.
+          </Text>
+        </Pressable>
+
         <Text style={styles.sectionTitle}>About</Text>
 
         <View style={styles.card}>

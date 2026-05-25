@@ -40,6 +40,7 @@ Some files depend on others. When provisioning a fresh dev DB after the
 9. [`add-vendors-to-realtime.sql`](add-vendors-to-realtime.sql) — adds `public.vendors` to the `supabase_realtime` publication so OOO / status flips push live. Independent.
 10. [`harden-vendors-rls.sql`](harden-vendors-rls.sql) — Phase 2.5: replaces the baseline `vendor_own` `FOR ALL` policy with per-action policies + status guard trigger + email immutability trigger. Apply **after** migration `003_rls_policies.sql` from the baseline; idempotent on re-run.
 11. [`seed-jobs-for-smoke-test.sql`](seed-jobs-for-smoke-test.sql) — dev-only smoke fixtures (10 jobs across every status, job_messages, 1 test vendor). See companion [`seed-jobs-for-smoke-test.VERIFICATION.md`](seed-jobs-for-smoke-test.VERIFICATION.md) for expected counts and query checks.
+12. [`add-vendor-notification-prefs.sql`](add-vendor-notification-prefs.sql) — Phase 4: adds `vendors.notification_prefs` JSONB with default-ON for the six push event types the vendor app emits. Independent of other schema files.
 
 ## File-by-file
 
@@ -75,6 +76,9 @@ Some files depend on others. When provisioning a fresh dev DB after the
 
 ### [`seed-jobs-for-smoke-test.sql`](seed-jobs-for-smoke-test.sql) + [`seed-jobs-for-smoke-test.VERIFICATION.md`](seed-jobs-for-smoke-test.VERIFICATION.md)
 **Purpose:** dev fixtures — 10 jobs (one per status value) + job_messages anchored near Springfield, IL, all assigned to one test vendor UUID. Idempotent via deterministic UUIDs + `ON CONFLICT DO NOTHING`. **Dependencies:** baseline `jobs` + `job_messages`; update `test_vendor_id` in the file to your dev vendor's UUID. **Status:** dev-only — never run in prod.
+
+### [`add-vendor-notification-prefs.sql`](add-vendor-notification-prefs.sql)
+**Purpose:** Phase 4 — adds `vendors.notification_prefs JSONB NOT NULL DEFAULT {...}` with default-ON for the six push event types emitted by the vendor app (`new_job`, `client_message`, `invoice_paid`, `quote_accepted`, `invoice_overdue`, `account_status`). Read by the backend before push delivery; in-app Realtime toasts are unaffected. Key set mirrors `src/types/notifications.ts` — update both in lock-step. **Dependencies:** none beyond baseline `vendors`. **Rollback:** `ALTER TABLE vendors DROP COLUMN notification_prefs`. **Status:** STAGED — apply on dev then prod.
 
 ## What NOT to do
 
