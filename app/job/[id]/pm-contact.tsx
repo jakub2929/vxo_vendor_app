@@ -30,8 +30,10 @@ export default function PmContactRoute() {
   const insets = useSafeAreaInsets();
 
   if (!id) return <Redirect href="/(tabs)" />;
-  const job = getMockJob(id);
-  const pm = job?.pm_id ? mockPMs[job.pm_id] : null;
+  const job = getMockJob(id) as
+    | (ReturnType<typeof getMockJob> & { mock_pm_id?: string | null })
+    | null;
+  const pm = job?.mock_pm_id ? mockPMs[job.mock_pm_id] : null;
 
   // Empty state when PM data is unavailable.
   //

@@ -41,7 +41,9 @@ import {
   useSearchResults,
 } from './useSearchResults';
 
-type Job = Database['public']['Tables']['jobs']['Row'];
+// Phase 5: Job is the synthetic vendor_requests + job_status + client shape
+// defined in features/chat/types.ts.
+import type { Job } from '@/features/chat/types';
 
 const DEBOUNCE_MS = 300;
 
@@ -197,8 +199,13 @@ function useDebounced<T>(value: T, delayMs: number): T {
 
 function JobResultRow({ job, onPress }: { job: Job; onPress: () => void }) {
   const jobNumber = formatJobNumber(job.id);
-  const trade = tradeLabel(job.trade);
-  const subtitleParts = [job.address, job.client_name].filter(
+  const trade = tradeLabel(job.service_type);
+  const clientName =
+    [job.client?.first_name, job.client?.last_name]
+      .filter((s): s is string => !!s && s.trim().length > 0)
+      .join(' ')
+      .trim() || null;
+  const subtitleParts = [job.location, clientName].filter(
     (s): s is string => !!s && s.length > 0,
   );
   return (
@@ -228,7 +235,7 @@ function MessageResultRow({
   onPress: () => void;
 }) {
   const jobNumber = formatJobNumber(hit.job.id);
-  const trade = tradeLabel(hit.job.trade);
+  const trade = tradeLabel(hit.job.service_type);
   const timestamp = formatRowTimestamp(hit.message.created_at);
   const senderLabel = formatSenderLabel(hit.message.sender);
   const snippet = senderLabel

@@ -9,9 +9,7 @@ import { showToast } from '@/components/Toast';
 import { HomeTab } from '@/features/home/HomeTab';
 import { useVendor } from '@/hooks/useVendor';
 import { colors, shadows } from '@/theme';
-import type { Database } from '@/types/database';
-
-type Job = Database['public']['Tables']['jobs']['Row'];
+import type { Job } from '@/features/chat/types';
 import { ChatsHeader } from './ChatsHeader';
 import { ChatsTabStrip, type ChatsTab } from './ChatsTabStrip';
 import { JobsListBody } from './JobsListBody';

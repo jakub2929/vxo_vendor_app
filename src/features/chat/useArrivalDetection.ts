@@ -34,7 +34,9 @@ const DEBOUNCE_MS = 30_000;
 // for the chat first-render.
 const MOUNT_DELAY_MS = 500;
 
-const ELIGIBLE_STATUSES: ReadonlyArray<string> = ['en_route', 'accepted'];
+// Phase 5: per-vendor job_status values that should trigger an arrival
+// check. Was ['en_route', 'accepted']; now the equivalents.
+const ELIGIBLE_STATUSES: ReadonlyArray<string> = ['on_the_way', 'in_progress'];
 
 export function useArrivalDetection(
   job: Job | null | undefined,
@@ -57,38 +59,27 @@ export function useArrivalDetection(
   const runCheck = useCallback(async (): Promise<void> => {
     const currentJob = jobRef.current;
     if (!currentJob) return;
-    if (!ELIGIBLE_STATUSES.includes(currentJob.status)) return;
-    if (currentJob.location_lat == null || currentJob.location_lng == null) {
+    if (
+      currentJob.job_status == null ||
+      !ELIGIBLE_STATUSES.includes(currentJob.job_status)
+    ) {
       return;
     }
-
+    // Phase 5 dropped jobs.location_lat/lng. Auto-arrival is currently
+    // disabled until Ryan re-exposes coordinates on vendor_requests — the
+    // manual "I've arrived" action card stays as the always-visible
+    // fallback. Bail silently when no coords are available.
+    //
+    // TODO(phase5b): re-enable once vendor_requests carries coords. Keep
+    // ARRIVAL_THRESHOLD_MILES + haversineMiles in scope for the eventual
+    // re-wire.
+    void ARRIVAL_THRESHOLD_MILES;
+    void haversineMiles;
+    void Location;
     const now = Date.now();
     if (now - lastCheckAtRef.current < DEBOUNCE_MS) return;
     lastCheckAtRef.current = now;
-
-    try {
-      const perm = await Location.getForegroundPermissionsAsync();
-      if (perm.status !== 'granted') return;
-
-      const pos = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const miles = haversineMiles(
-        { lat: pos.coords.latitude, lng: pos.coords.longitude },
-        {
-          lat: Number(currentJob.location_lat),
-          lng: Number(currentJob.location_lng),
-        },
-      );
-
-      if (miles < ARRIVAL_THRESHOLD_MILES) {
-        arrivalRef.current();
-      }
-    } catch (err) {
-      // No UI noise — manual button is the fallback.
-      console.warn('[useArrivalDetection] check failed:', err);
-    }
+    return;
   }, []);
 
   // On-mount check (after a brief settle). One-shot per JobChatScreen mount.

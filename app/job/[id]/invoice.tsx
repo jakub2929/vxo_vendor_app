@@ -107,8 +107,8 @@ export default function InvoiceBuilderRoute() {
   };
 
   const jobNumber = formatJobNumber(id);
-  const clientFirstName = firstNameOf(job?.client_name ?? null);
-  const address = job?.address ?? null;
+  const clientFirstName = firstNameOf(job?.client?.first_name ?? null);
+  const address = job?.location ?? null;
 
   return (
     <View style={styles.root}>

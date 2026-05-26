@@ -19,13 +19,15 @@ import type {
   Job,
 } from '@/features/chat/types';
 import { mockInvoices } from '@/lib/mockInvoices';
-import { mockJobs } from '@/lib/mockJobs';
+import { mockJobs, MOCK_VENDOR_ID, type MockJob } from '@/lib/mockJobs';
 import { mockJobMessages } from '@/lib/mockJobMessages';
 import { queryClient } from '@/lib/queryClient';
 
 // Deep-clone the seed data so mutations don't leak back into the immutable
 // fixture arrays — those are reused by Home, Jobs list, summary queries.
-const jobsMap = new Map<string, Job>(
+// We store MockJob (Job + assigned_vendor_id + mock_pm_id) so mutators can
+// still see the mock-only association fields.
+const jobsMap = new Map<string, MockJob>(
   mockJobs.map((j) => [j.id, { ...j }]),
 );
 
@@ -45,13 +47,16 @@ export function getMockMessages(jobId: string): ChatMessage[] {
   return [...(messagesMap.get(jobId) ?? [])];
 }
 
-export function setMockJobStatus(jobId: string, status: Job['status']): void {
+// Phase 5: mutates the per-vendor `job_status` field — that's what the chat
+// screen's action card row keys off of. The request-wide `status` column is
+// left alone (it's typically driven by Ryan's backend, not by individual
+// vendor actions).
+export function setMockJobStatus(jobId: string, status: string): void {
   const current = jobsMap.get(jobId);
   if (!current) return;
   jobsMap.set(jobId, {
     ...current,
-    status,
-    updated_at: new Date().toISOString(),
+    job_status: status,
   });
   void queryClient.invalidateQueries({ queryKey: ['chat', 'job', jobId] });
   // Jobs list / Home recent jobs read from mockJobs directly (not from this
@@ -80,7 +85,7 @@ export function appendMockMessage(
 ): ChatMessage {
   const full: ChatMessage = {
     id: msg.id ?? `mock-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    job_id: jobId,
+    request_id: jobId,
     sender: msg.sender,
     content: msg.content,
     created_at: msg.created_at ?? new Date().toISOString(),
@@ -180,7 +185,7 @@ export function appendMockInvoice(
   const invoice: Invoice = {
     id: invoiceId,
     job_id: jobId,
-    vendor_id: job.assigned_vendor_id,
+    vendor_id: job.assigned_vendor_id ?? MOCK_VENDOR_ID,
     kind: 'invoice',
     labor: null,
     parts: null,
@@ -243,7 +248,7 @@ export function appendMockQuote(
   const quote: Invoice = {
     id: quoteId,
     job_id: jobId,
-    vendor_id: job.assigned_vendor_id,
+    vendor_id: job.assigned_vendor_id ?? MOCK_VENDOR_ID,
     kind: 'quote',
     labor: null,
     parts: null,

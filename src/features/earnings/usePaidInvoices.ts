@@ -13,13 +13,15 @@ export function usePaidInvoices(vendorId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('invoices')
-        .select('*, jobs!inner(client_name, trade)')
+        .select(
+          `*, vendor_requests!inner(service_type, client:profiles!client_id(first_name, last_name))`,
+        )
         .eq('vendor_id', vendorId as string)
         .eq('kind', 'invoice')
         .eq('status', 'paid')
         .order('paid_at', { ascending: false });
       if (error) throw error;
-      return (data ?? []) as EarningsRow[];
+      return (data ?? []) as unknown as EarningsRow[];
     },
   });
 }

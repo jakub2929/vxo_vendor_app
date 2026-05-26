@@ -16,13 +16,15 @@ export function usePendingQuotes(vendorId: string | null | undefined) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('invoices')
-        .select('*, jobs!inner(client_name, trade)')
+        .select(
+          `*, vendor_requests!inner(service_type, client:profiles!client_id(first_name, last_name))`,
+        )
         .eq('vendor_id', vendorId as string)
         .eq('kind', 'quote')
         .in('status', PENDING_QUOTE_STATUSES)
         .order('sent_at', { ascending: false });
       if (error) throw error;
-      return (data ?? []) as EarningsRow[];
+      return (data ?? []) as unknown as EarningsRow[];
     },
   });
 }

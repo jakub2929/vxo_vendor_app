@@ -4,13 +4,35 @@
 //   1. ChatMessage — a row in `job_messages` (real Supabase table). Only
 //      free-text bubbles + a small set of system markers persist as rows.
 //   2. ActionCardSpec — which action card buttons to render. Derived
-//      client-side from `jobs.status`, not stored.
+//      client-side from the vendor's per-job state, not stored.
 //   3. TimelineItem — the FlatList renderer's flat item type. Mixes
-//      info cards (derived from jobs.*), bubbles (from job_messages),
+//      info cards (derived from request fields), bubbles (from job_messages),
 //      system markers, and action card rows.
+//
+// Phase 5: the underlying row is now `vendor_requests` (renamed from `jobs`).
+// Action-card / list state lives on `request_vendors.job_status` (per-vendor
+// M2M join), which we surface here as Job.job_status. The high-level request
+// state (`vendor_requests.status`) is intentionally NOT exposed — UI cares
+// about the per-vendor lifecycle, not the request-wide rollup.
 import type { Database } from '@/types/database';
 
-export type Job = Database['public']['Tables']['jobs']['Row'];
+type RequestRow = Database['public']['Tables']['vendor_requests']['Row'];
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+
+export type ClientEmbed = Pick<
+  ProfileRow,
+  'first_name' | 'last_name' | 'phone' | 'email'
+>;
+
+// Synthetic shape returned by useJob/useJobsList/etc. — the request row plus
+// the per-vendor job_status pulled out of request_vendors, plus an embedded
+// client profile for display. Consumers should treat job_status as the
+// authoritative lifecycle state.
+export type Job = RequestRow & {
+  job_status: string | null;
+  client: ClientEmbed | null;
+};
+
 export type Invoice = Database['public']['Tables']['invoices']['Row'];
 export type InvoiceItem = Database['public']['Tables']['invoice_items']['Row'];
 
@@ -29,7 +51,10 @@ export type ChatAttachment =
 
 export type ChatMessage = {
   id: string;
-  job_id: string;
+  // request_id is the new primary FK on job_messages. The field is named
+  // `request_id` to match the column; renderer code threads it as the
+  // conversation key in place of the legacy job_id.
+  request_id: string;
   sender: ChatSender;
   content: string;
   created_at: string;
@@ -56,10 +81,10 @@ export type TimelineItem =
       timestamp: string | null;
       // Straight-line miles from vendor GPS → job coords. Populated at render
       // time in JobChatScreen (buildTimeline stays pure), null when GPS is
-      // unavailable or job has no coordinates.
+      // unavailable or the job has no coordinates.
       distance: number | null;
-      // First name only of jobs.client_name. Privacy/contract: vendors see
-      // who the customer is for personalization but not the full identity.
+      // First name only of the client. Privacy/contract: vendors see who the
+      // customer is for personalization but not the full identity.
       customerFirstName: string | null;
     }
   | {

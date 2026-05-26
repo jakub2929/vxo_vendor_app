@@ -56,9 +56,9 @@ function senderForBubble(sender: SupportMessage['sender']): ChatSender {
 function toChatMessage(msg: SupportMessage): ChatMessage {
   return {
     id: msg.id,
-    // Bubble doesn't read job_id; satisfy the required type with a stable
-    // sentinel rather than threading a nullable string everywhere.
-    job_id: msg.job_id ?? 'support',
+    // Bubble doesn't read request_id; satisfy the required type with a
+    // stable sentinel rather than threading a nullable string everywhere.
+    request_id: msg.job_id ?? 'support',
     sender: senderForBubble(msg.sender),
     content: msg.message,
     created_at: msg.created_at,

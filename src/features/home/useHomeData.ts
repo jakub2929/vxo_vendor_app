@@ -4,16 +4,18 @@ import { mockJobs } from '@/lib/mockJobs';
 import { supabase } from '@/lib/supabase';
 import { formatJobNumber } from '@/utils/formatters';
 
+// Phase 5: JobStatus is now the per-vendor lifecycle on
+// request_vendors.job_status — distinct from the request-wide
+// vendor_requests.status (pending|in_progress|completed). Legacy values
+// (new/dispatched/accepted/en_route/on_site/complete/invoiced/paid/closed)
+// were collapsed by the Phase 5 status enum spec into the union below.
 export type JobStatus =
-  | 'new'
-  | 'dispatched'
-  | 'accepted'
-  | 'en_route'
-  | 'on_site'
-  | 'complete'
-  | 'invoiced'
-  | 'paid'
-  | 'closed'
+  | 'pending'
+  | 'in_progress'
+  | 'on_the_way'
+  | 'arrived'
+  | 'working'
+  | 'completed'
   | 'cancelled';
 
 // Full union of invoice + quote statuses. The original 5 are Ryan's baseline
@@ -43,8 +45,8 @@ export type HomeRecentJob = {
   invoiceStatus: InvoiceStatus | null;
   jobStatus: JobStatus;
   updatedAt: string;
-  // Client display name pulled from jobs.client_name. NULL when the dispatch
-  // row never had one set. Renderers should fall back to status-only.
+  // Client display name joined from profiles via vendor_requests.client_id.
+  // NULL when the request has no client linked.
   clientName: string | null;
 };
 
@@ -174,10 +176,8 @@ export function useHomeStats(vendorId: string | null | undefined) {
         return { invoicesSent: sent, invoicesPaid: paid };
       }
 
-      // Both tiles are now month-scoped (was lifetime). "Sent" uses sent_at
-      // with a created_at fallback for rows that never had sent_at populated;
-      // the migration backfilled sent_at on legacy 'sent'/'approved'/'paid'/
-      // 'rejected' rows, so the fallback is mostly defensive. "Paid" uses
+      // Both tiles are month-scoped. "Sent" uses sent_at with a created_at
+      // fallback for rows that never had sent_at populated. "Paid" uses
       // paid_at with updated_at fallback for the seed-data NULL case.
       const [sentR, paidR] = await Promise.all([
         supabase
@@ -208,8 +208,10 @@ export function useHomeStats(vendorId: string | null | undefined) {
   });
 }
 
-// Query from jobs (not invoices) so each job appears at most once, even when
-// it has both a quote and an invoice. Attach the latest invoice per job in JS.
+// Recent-jobs feed. Phase 5: query vendor_requests via the request_vendors
+// M2M join (filtered by the current vendor), and embed the client profile
+// for the display name. The per-vendor `job_status` drives the row's status
+// pill; vendor_requests.status (request-wide rollup) is ignored.
 export function useHomeRecentJobs(vendorId: string | null | undefined) {
   return useQuery<HomeRecentJob[]>({
     queryKey: ['home', 'recent', vendorId],
@@ -218,7 +220,7 @@ export function useHomeRecentJobs(vendorId: string | null | undefined) {
       if (USE_MOCKS) {
         const recent = [...mockJobs]
           .sort((a, b) =>
-            (b.updated_at ?? '').localeCompare(a.updated_at ?? ''),
+            (b.created_at ?? '').localeCompare(a.created_at ?? ''),
           )
           .slice(0, 10);
         return recent.map((j) => {
@@ -227,23 +229,32 @@ export function useHomeRecentJobs(vendorId: string | null | undefined) {
             .sort((a, b) =>
               (b.created_at ?? '').localeCompare(a.created_at ?? ''),
             )[0];
+          const clientName =
+            [j.client?.first_name, j.client?.last_name]
+              .filter((s): s is string => !!s && s.trim().length > 0)
+              .join(' ')
+              .trim() || null;
           return {
             jobId: j.id,
             shortId: formatJobNumber(j.id),
             total: latestInv?.total ?? null,
             invoiceStatus: (latestInv?.status as InvoiceStatus | undefined) ?? null,
-            jobStatus: j.status as JobStatus,
-            updatedAt: j.updated_at ?? '',
-            clientName: j.client_name ?? null,
+            jobStatus: (j.job_status ?? 'pending') as JobStatus,
+            updatedAt: j.created_at ?? '',
+            clientName,
           };
         });
       }
 
       const { data: jobs, error: jobsErr } = await supabase
-        .from('jobs')
-        .select('id, status, updated_at, client_name')
-        .eq('assigned_vendor_id', vendorId as string)
-        .order('updated_at', { ascending: false })
+        .from('vendor_requests')
+        .select(
+          `id, status, created_at,
+           request_vendors!inner(job_status, vendor_id),
+           client:profiles!client_id(first_name, last_name)`,
+        )
+        .eq('request_vendors.vendor_id', vendorId as string)
+        .order('created_at', { ascending: false })
         .limit(10);
       if (jobsErr) throw jobsErr;
       if (!jobs || jobs.length === 0) return [];
@@ -271,14 +282,25 @@ export function useHomeRecentJobs(vendorId: string | null | undefined) {
 
       return jobs.map((j) => {
         const inv = latestByJob.get(j.id);
+        // PostgREST returns the embedded join as either an object or an
+        // array depending on relationship cardinality. Normalize both.
+        const rv = Array.isArray(j.request_vendors)
+          ? j.request_vendors[0]
+          : (j.request_vendors as { job_status: string | null } | null);
+        const clientObj = Array.isArray(j.client) ? j.client[0] : j.client;
+        const clientName =
+          [clientObj?.first_name, clientObj?.last_name]
+            .filter((s): s is string => !!s && s.trim().length > 0)
+            .join(' ')
+            .trim() || null;
         return {
           jobId: j.id,
           shortId: formatJobNumber(j.id),
           total: inv?.total ?? null,
           invoiceStatus: (inv?.status as InvoiceStatus | undefined) ?? null,
-          jobStatus: j.status as JobStatus,
-          updatedAt: j.updated_at ?? '',
-          clientName: j.client_name ?? null,
+          jobStatus: (rv?.job_status ?? 'pending') as JobStatus,
+          updatedAt: j.created_at ?? '',
+          clientName,
         };
       });
     },
@@ -286,9 +308,9 @@ export function useHomeRecentJobs(vendorId: string | null | undefined) {
 }
 
 // Q2 (approved): 3 buckets, no false precision.
-//   - new / dispatched / cancelled → 0% (grey track only)
-//   - any in-progress status (accepted..invoiced) → 50%, purple #615EFC
-//   - paid / closed → 100%, orange #FF981F
+//   - pending / cancelled → 0% (grey track only)
+//   - any in-progress status (in_progress..working) → 50%, purple #615EFC
+//   - completed → 100%, orange #FF981F
 export type ProgressBucket = {
   pct: 0 | 50 | 100;
   // null = render only the grey track (no fill bar at all).
@@ -299,18 +321,10 @@ export function progressBucket(
   jobStatus: JobStatus,
   invoiceStatus: InvoiceStatus | null,
 ): ProgressBucket {
-  if (
-    jobStatus === 'paid' ||
-    jobStatus === 'closed' ||
-    invoiceStatus === 'paid'
-  ) {
+  if (jobStatus === 'completed' || invoiceStatus === 'paid') {
     return { pct: 100, fillColor: '#FF981F' };
   }
-  if (
-    jobStatus === 'new' ||
-    jobStatus === 'dispatched' ||
-    jobStatus === 'cancelled'
-  ) {
+  if (jobStatus === 'pending' || jobStatus === 'cancelled') {
     return { pct: 0, fillColor: null };
   }
   return { pct: 50, fillColor: '#615EFC' };
@@ -320,16 +334,14 @@ export function statusLabel(
   jobStatus: JobStatus,
   invoiceStatus: InvoiceStatus | null,
 ): { label: string; emoji: string } {
-  if (jobStatus === 'paid' || invoiceStatus === 'paid')
+  if (jobStatus === 'completed' && invoiceStatus === 'paid')
     return { label: 'Paid', emoji: '✅' };
-  if (jobStatus === 'closed') return { label: 'Closed', emoji: '✅' };
+  if (jobStatus === 'completed') return { label: 'Complete', emoji: '✅' };
   if (jobStatus === 'cancelled') return { label: 'Cancelled', emoji: '❌' };
-  if (jobStatus === 'invoiced' || invoiceStatus === 'sent')
-    return { label: 'Pending', emoji: '⏳' };
-  if (jobStatus === 'complete') return { label: 'Complete', emoji: '⏳' };
-  if (jobStatus === 'on_site') return { label: 'On Site', emoji: '🛠️' };
-  if (jobStatus === 'en_route') return { label: 'En Route', emoji: '🚐' };
-  if (jobStatus === 'accepted') return { label: 'Accepted', emoji: '👍' };
-  if (jobStatus === 'dispatched') return { label: 'Dispatched', emoji: '📨' };
+  if (invoiceStatus === 'sent') return { label: 'Pending', emoji: '⏳' };
+  if (jobStatus === 'arrived' || jobStatus === 'working')
+    return { label: 'On Site', emoji: '🛠️' };
+  if (jobStatus === 'on_the_way') return { label: 'En Route', emoji: '🚐' };
+  if (jobStatus === 'in_progress') return { label: 'Accepted', emoji: '👍' };
   return { label: 'New', emoji: '🆕' };
 }

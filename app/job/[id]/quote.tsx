@@ -125,8 +125,8 @@ export default function QuoteBuilderRoute() {
 
   const jobNumber = formatJobNumber(id);
   const expiryDateLabel = formatExpiryDate(expiresInDays);
-  const clientFirstName = firstNameOf(job?.client_name ?? null);
-  const address = job?.address ?? null;
+  const clientFirstName = firstNameOf(job?.client?.first_name ?? null);
+  const address = job?.location ?? null;
 
   return (
     <View style={styles.root}>

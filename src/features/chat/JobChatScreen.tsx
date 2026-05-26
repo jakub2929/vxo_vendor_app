@@ -65,24 +65,17 @@ type Props = {
   jobId: string;
 };
 
-// Hand off navigation to the OS Maps app. Prefer GPS coordinates when the
-// job has them; fall back to the address string. Silently no-ops when both
-// are missing. Linking rejection is swallowed because the caller has
-// already committed to its own success path (status transition, etc).
+// Hand off navigation to the OS Maps app using the job location string.
+// Phase 5 dropped jobs.location_lat / jobs.location_lng, so we no longer
+// build a precise daddr=lat,lng URL — Maps geocodes the location string
+// instead. Silently no-ops when the location is missing.
 function openMapsForJob(job: Job) {
-  const url =
-    job.location_lat != null && job.location_lng != null
-      ? Platform.select({
-          ios: `maps:?daddr=${job.location_lat},${job.location_lng}`,
-          android: `geo:${job.location_lat},${job.location_lng}?q=${job.location_lat},${job.location_lng}`,
-        })
-      : job.address
-        ? Platform.select({
-            ios: `maps:?daddr=${encodeURIComponent(job.address)}`,
-            android: `geo:0,0?q=${encodeURIComponent(job.address)}`,
-          })
-        : null;
-
+  const location = job.location;
+  if (!location) return;
+  const url = Platform.select({
+    ios: `maps:?daddr=${encodeURIComponent(location)}`,
+    android: `geo:0,0?q=${encodeURIComponent(location)}`,
+  });
   if (url) {
     Linking.openURL(url).catch(() => {});
   }
@@ -129,17 +122,12 @@ export function JobChatScreen({ jobId }: Props) {
     }
   }, []);
 
-  // Straight-line miles vendor → job. Null when GPS is unavailable (perm
-  // denied, hook still loading) OR when the job has no coordinates. Same
-  // shape as JobRow's composeHeadline — keeps buildTimeline pure.
-  const distanceMi = useMemo<number | null>(() => {
-    if (!job || !vendorCoords) return null;
-    if (job.location_lat == null || job.location_lng == null) return null;
-    return haversineMiles(vendorCoords, {
-      lat: Number(job.location_lat),
-      lng: Number(job.location_lng),
-    });
-  }, [job, vendorCoords]);
+  // Phase 5 dropped jobs.location_lat / jobs.location_lng — distance is
+  // unavailable until Ryan re-exposes coordinates on vendor_requests. The
+  // info card and SLA banner render without a miles suffix.
+  void vendorCoords;
+  void haversineMiles;
+  const distanceMi: number | null = null;
 
   const timeline = useMemo<TimelineItem[]>(() => {
     if (!job) return [];
@@ -148,7 +136,7 @@ export function JobChatScreen({ jobId }: Props) {
     // the SLA banner text to include miles when GPS is available. Both
     // pieces of UI need the vendor coords, so we compose them here rather
     // than threading GPS through the pure builder.
-    const slaHour = job.urgency === 'emergency' ? '2 Hour' : '4 Hour';
+    const slaHour = job.priority === 'High' ? '2 Hour' : '4 Hour';
     const slaText =
       distanceMi != null
         ? `${slaHour} - ${formatDistance(distanceMi)} away`
@@ -188,9 +176,9 @@ export function JobChatScreen({ jobId }: Props) {
     if (!job) return;
 
     if (USE_MOCKS) {
-      if (job.status === 'on_site') return;
+      if (job.job_status === 'arrived') return;
       setMockCheckinTime(job.id, new Date().toISOString());
-      setMockJobStatus(job.id, 'on_site');
+      setMockJobStatus(job.id, 'arrived');
       appendMockMessage(job.id, {
         sender: 'system',
         content: '📍 Arrived on site',
@@ -214,9 +202,9 @@ export function JobChatScreen({ jobId }: Props) {
 
     try {
       const { error: msgError } = await supabase.from('job_messages').insert({
-        job_id: job.id,
+        request_id: job.id,
         sender: 'system',
-        content: '📍 Arrived on site',
+        message: '📍 Arrived on site',
       });
       if (msgError) {
         console.warn('[arrival] system message insert failed:', msgError.message);
@@ -239,7 +227,7 @@ export function JobChatScreen({ jobId }: Props) {
     switch (kind) {
       case 'accept':
         if (USE_MOCKS) {
-          setMockJobStatus(job.id, 'accepted');
+          setMockJobStatus(job.id, 'in_progress');
           appendMockMessage(job.id, {
             sender: 'vendor',
             content: 'You Accepted. Need to Reject. Press Here.',
@@ -263,6 +251,7 @@ export function JobChatScreen({ jobId }: Props) {
             sender: 'system',
             content: 'Job declined. The dispatcher has been notified.',
           });
+          // (status is per-vendor job_status — see mockChatState.)
         } else {
           const { error } = await supabase.rpc('reject_job', {
             p_job_id: job.id,
@@ -276,21 +265,21 @@ export function JobChatScreen({ jobId }: Props) {
         break;
 
       case 'get_directions':
-        // "Get Directions" is dual-purpose: first tap (status='accepted')
-        // both transitions to en_route AND opens Maps; subsequent taps
-        // while already en_route just re-open Maps. Vendor's real workflow
+        // "Get Directions" is dual-purpose: first tap (job_status='in_progress')
+        // both transitions to 'on_the_way' AND opens Maps; subsequent taps
+        // while already on_the_way just re-open Maps. Vendor's real workflow
         // includes closing/reopening the Maps app mid-route — forcing them
         // back through a status flow to re-open directions would be
         // pointless friction.
         if (USE_MOCKS) {
-          setMockJobStatus(job.id, 'en_route');
+          setMockJobStatus(job.id, 'on_the_way');
           appendMockMessage(job.id, {
             sender: 'alfred',
             content:
               'Get Directions. Client has been notified you are on the way. Click here to cancel.',
           });
         } else {
-          if (job.status === 'accepted') {
+          if (job.job_status === 'in_progress') {
             const { error } = await supabase.rpc('start_travel', {
               p_job_id: job.id,
             });
@@ -301,7 +290,7 @@ export function JobChatScreen({ jobId }: Props) {
             await invalidateAfterTransition();
           }
           // Re-open Maps regardless of whether this was the first tap or a
-          // re-tap during en_route.
+          // re-tap during on_the_way.
           openMapsForJob(job);
         }
         break;
@@ -347,7 +336,7 @@ export function JobChatScreen({ jobId }: Props) {
       if (!job) return { ok: false };
 
       if (USE_MOCKS) {
-        setMockJobStatus(job.id, 'complete');
+        setMockJobStatus(job.id, 'completed');
         appendMockMessage(job.id, {
           sender: 'system',
           content: 'Job marked complete. Photos uploaded.',
@@ -494,9 +483,9 @@ export function JobChatScreen({ jobId }: Props) {
 
   const showFallback =
     !jobLoading && !messagesLoading && job && messages.length === 0 &&
-    actionsForStatus(job.status).length === 0 &&
-    (job.status !== 'paid' && job.status !== 'closed' &&
-     job.status !== 'cancelled');
+    actionsForStatus(job.job_status).length === 0 &&
+    job.job_status !== 'completed' &&
+    job.job_status !== 'cancelled';
 
   return (
     <View style={styles.root}>

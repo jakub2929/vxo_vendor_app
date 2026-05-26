@@ -2,16 +2,15 @@ import { colors } from '@/theme';
 import type { JobStatus } from '@/features/home/useHomeData';
 
 // Per Figma node 4:10443 ("Home Page Open Work Orders"):
-//   - Row 1 (HVAC, fresh dispatch):     headline red, blue avatar dot, "Check in here when you are on"
-//   - Row 2 (Plumbing, in-progress):    headline red, grey avatar dot,  "Tech is arriving in 1 -3 Hours"
-//   - Row 3 (Plumbing, scheduled):      headline red ("This Week"),     "You Confirmed Tuesday 10AM."
-//   - Row 4 (Plumbing, completed):      headline green ("Completed"),   "Invoice Sent"
-//   - Row 5 (Plumbing, paid):           headline green ("Completed"),   "Invoice Paid"
+//   - Pending fresh dispatch:     headline red, blue avatar dot, "Check in here when you are on"
+//   - In progress (accepted):     headline red, grey avatar dot,  "Tech is arriving in 1 -3 Hours"
+//   - On the way:                 orange "En route", "You Confirmed your route — on the way"
+//   - Arrived/working:            green "On site", "Check out when work is complete"
+//   - Completed:                  green "Completed", "Invoice Paid"
+//   - Cancelled:                  grey "Cancelled"
 //
-// Mapped to our 7 active job statuses + cancelled. Where the Figma examples
-// don't cover a status, copy is extrapolated — flag for Ryan if any reads
-// wrong. Distance/ETA composition lives in JobRow; this file only provides
-// the static parts.
+// Mapped to the Phase 5 job_status union (per-vendor lifecycle). Distance/
+// ETA composition lives in JobRow; this file only provides the static parts.
 export type DotVariant = 'online' | 'offline';
 
 export type JobStatusMeta = {
@@ -39,61 +38,40 @@ const FIGMA_RED = '#FF0000';
 
 export function jobStatusMeta(status: JobStatus): JobStatusMeta {
   switch (status) {
-    case 'new':
-    case 'dispatched':
+    case 'pending':
       return {
         headlineColor: FIGMA_RED,
         literalHeadline: null,
         subtitle: 'Check in here when you are on',
         dotVariant: 'online',
       };
-    case 'accepted':
+    case 'in_progress':
       return {
         headlineColor: FIGMA_RED,
         literalHeadline: null,
         subtitle: 'Tech is arriving in 1 -3 Hours',
         dotVariant: 'offline',
       };
-    case 'en_route':
+    case 'on_the_way':
       return {
         headlineColor: colors.accent.orange,
         literalHeadline: 'En route',
         subtitle: 'You Confirmed your route — on the way',
         dotVariant: 'offline',
       };
-    case 'on_site':
+    case 'arrived':
+    case 'working':
       return {
         headlineColor: colors.status.success,
         literalHeadline: 'On site',
         subtitle: 'Check out when work is complete',
         dotVariant: 'offline',
       };
-    case 'complete':
-      return {
-        headlineColor: colors.status.success,
-        literalHeadline: 'Work complete',
-        subtitle: 'Generate quote or invoice',
-        dotVariant: 'offline',
-      };
-    case 'invoiced':
-      return {
-        headlineColor: colors.status.success,
-        literalHeadline: 'Completed',
-        subtitle: 'Invoice Sent',
-        dotVariant: 'offline',
-      };
-    case 'paid':
+    case 'completed':
       return {
         headlineColor: colors.status.success,
         literalHeadline: 'Completed',
         subtitle: 'Invoice Paid',
-        dotVariant: 'offline',
-      };
-    case 'closed':
-      return {
-        headlineColor: colors.text.tertiary,
-        literalHeadline: 'Closed',
-        subtitle: '',
         dotVariant: 'offline',
       };
     case 'cancelled':

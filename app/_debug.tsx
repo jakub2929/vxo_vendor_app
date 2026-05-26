@@ -118,7 +118,7 @@ export default function DebugSmokeTestScreen() {
     const runTestsSequentially = async () => {
       updateResult(0, { status: 'pending', summary: 'Running...', raw: '' });
       try {
-        const { data, error } = await supabase.from('vendors').select('id, email, status');
+        const { data, error } = await supabase.from('vendor_profiles').select('id, email, status');
         const pass = error === null && Array.isArray(data) && data.length === 0;
         updateResult(0, {
           status: pass ? 'pass' : 'fail',
@@ -139,7 +139,7 @@ export default function DebugSmokeTestScreen() {
 
       updateResult(1, { status: 'pending', summary: 'Running...', raw: '' });
       try {
-        const { data, error } = await supabase.from('jobs').select('id, status');
+        const { data, error } = await supabase.from('vendor_requests').select('id, status');
         const pass = error === null && Array.isArray(data) && data.length === 0;
         updateResult(1, {
           status: pass ? 'pass' : 'fail',
@@ -369,12 +369,12 @@ export default function DebugSmokeTestScreen() {
               return;
             }
             const { data, error } = await supabase
-              .from('vendors')
+              .from('vendor_profiles')
               .insert({
                 email: user.email,
                 name: 'TEST DEBUG ' + Date.now(),
-                business: 'Test Inc',
-                trades: ['hvac'],
+                business_name: 'Test Inc',
+                service_categories: ['hvac'],
                 status: 'pending',
               })
               .select()

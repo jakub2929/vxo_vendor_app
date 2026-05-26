@@ -4,7 +4,7 @@ import { colors } from '@/theme';
 import type { Database } from '@/types/database';
 import { useToggleOOO } from './useToggleOOO';
 
-type Vendor = Database['public']['Tables']['vendors']['Row'];
+type Vendor = Database['public']['Tables']['vendor_profiles']['Row'];
 
 type Props = {
   vendor: Vendor;

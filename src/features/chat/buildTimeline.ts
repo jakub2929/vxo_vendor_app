@@ -1,37 +1,45 @@
 // Pure function: given a Job + its messages, produce the flat list of
 // TimelineItems the FlatList renders. Info cards + action card row + system
-// markers are derived from jobs.* — NOT rows in job_messages. See types.ts
+// markers are derived from job.* — NOT rows in job_messages. See types.ts
 // for the model.
 //
 // Order (top → bottom):
 //   1. Info card: Location
 //   2. Info card: job number / trade / description / NTE / notes
-//   3. SLA banner row (only when urgency suggests a tight clock —
-//      'emergency' or 'priority')
-//   4. Info card: Emergency SLA (only when urgency === 'emergency')
+//   3. SLA banner row (only when priority suggests a tight clock —
+//      'High' or 'Medium')
+//   4. Info card: Emergency SLA (only when priority === 'High')
 //   5. Date separator "Today" (or formatted calendar day)
 //   6. Bubbles (in created_at order), with extra date separators inserted
 //      when the calendar day changes
-//   7. System marker: "On site Nm" — derived from jobs.checkin_time,
+//   7. System marker: "On site Nm" — derived from job.checkin_time,
 //      inserted at the position matching that timestamp
-//   8. System marker: "Check Out h:mm" — derived from jobs.checkout_time
-//   9. Action card row (per status), OR footer marker for paid/closed/cancelled
+//   8. System marker: "Check Out h:mm" — derived from job.checkout_time
+//   9. Action card row (per job_status), OR footer marker for completed/
+//      cancelled terminal states
+//
+// Phase 5: action/footer decisions key off the per-vendor request_vendors.
+// job_status, which we expose on Job as `job_status`. The high-level
+// vendor_requests.status is NOT used here — it's a request-wide rollup
+// owned by the dispatcher backend, while the action card is about THIS
+// vendor's lifecycle. Status enum values: pending | in_progress |
+// on_the_way | arrived | working | completed | cancelled.
 import { formatJobNumber } from '@/utils/formatters';
 import type {
   ActionCardSpec,
   ChatMessage,
+  ClientEmbed,
   Invoice,
   InvoiceItem,
   Job,
   TimelineItem,
 } from './types';
 
-export function actionsForStatus(status: string): ActionCardSpec[] {
+export function actionsForStatus(status: string | null): ActionCardSpec[] {
   switch (status) {
-    case 'new':
-    case 'dispatched':
+    case 'pending':
       return [{ kind: 'accept' }, { kind: 'reject' }];
-    case 'accepted':
+    case 'in_progress':
       return [
         { kind: 'get_directions' },
         { kind: 'manual_arrival' },
@@ -39,7 +47,7 @@ export function actionsForStatus(status: string): ActionCardSpec[] {
         { kind: 'send_quote' },
         { kind: 'questions' },
       ];
-    case 'en_route':
+    case 'on_the_way':
       return [
         { kind: 'get_directions', highlighted: true },
         { kind: 'manual_arrival' },
@@ -47,26 +55,17 @@ export function actionsForStatus(status: string): ActionCardSpec[] {
         { kind: 'send_quote' },
         { kind: 'questions' },
       ];
-    case 'on_site':
+    case 'arrived':
+    case 'working':
       return [
         { kind: 'invoice_client' },
         { kind: 'send_quote' },
         { kind: 'questions' },
         { kind: 'complete_job' },
       ];
-    case 'complete':
-      return [
-        { kind: 'invoice_client' },
-        { kind: 'send_quote' },
-        { kind: 'questions' },
-      ];
-    case 'invoiced':
-      // No action row for `invoiced`: by the time the job hits this state
-      // the vendor has already tapped "Invoice Client" and the chat thread
-      // has transitioned into the invoice-intake conversation (the
-      // "We ask 3 quick questions…" alfred reply). A separate system
-      // marker confirms the send — see invoiceStatusMarkerText below.
-      // Matches Figma 4:10457, bottom of the composite.
+    case 'completed':
+    case 'cancelled':
+      // Terminal — footer marker handles these states, no action row.
       return [];
     default:
       return [];
@@ -74,9 +73,9 @@ export function actionsForStatus(status: string): ActionCardSpec[] {
 }
 
 function footerForStatus(
-  status: string,
+  status: string | null,
 ): { text: string; tone: 'success' | 'danger' } | null {
-  if (status === 'paid' || status === 'closed') {
+  if (status === 'completed') {
     return { text: 'Job complete', tone: 'success' };
   }
   if (status === 'cancelled') {
@@ -161,28 +160,30 @@ export function buildTimeline(
   items.push({
     kind: 'info_card_location',
     id: 'card-location',
-    address: job.address,
+    address: job.location ?? '',
     timestamp: job.created_at ? formatTimeOfDay(job.created_at) : null,
     // Distance is injected by JobChatScreen via post-process — buildTimeline
     // is pure and has no access to GPS. See callsite for the override.
     distance: null,
-    customerFirstName: firstNameOf(job.client_name),
+    customerFirstName: firstNameOfClient(job.client),
   });
 
   items.push({
     kind: 'info_card_wo',
     id: 'card-wo',
     shortId: formatJobNumber(job.id),
-    trade: prettyTrade(job.trade),
+    trade: prettyTrade(job.service_type),
     description: job.description ?? '',
     timing: job.eta_label ?? null,
     nte: null, // schema has no NTE column today; show null until backend lands
     notes: null,
-    dispatchFee: job.dispatch_fee,
+    // dispatch_fee was dropped in the Phase 5 rename — show null until the
+    // replacement column lands.
+    dispatchFee: null,
     timestamp: job.created_at ? formatTimeOfDay(job.created_at) : null,
   });
 
-  if (job.urgency === 'emergency' || job.urgency === 'priority') {
+  if (job.priority === 'High' || job.priority === 'Medium') {
     items.push({
       kind: 'sla_banner',
       id: 'sla-banner',
@@ -190,7 +191,7 @@ export function buildTimeline(
     });
   }
 
-  if (job.urgency === 'emergency' && job.eta_datetime) {
+  if (job.priority === 'High' && job.eta_datetime) {
     items.push({
       kind: 'info_card_sla',
       id: 'card-sla',
@@ -291,7 +292,7 @@ export function buildTimeline(
     }
   }
 
-  // Markers that fall AFTER the last message (e.g. job is on_site with no
+  // Markers that fall AFTER the last message (e.g. job is arrived with no
   // messages yet after check-in) still need to render.
   if (!checkinInserted && job.checkin_time) {
     items.push({
@@ -309,12 +310,11 @@ export function buildTimeline(
   }
 
   // --- Invoice status confirmation marker ---
-  // While status === 'invoiced' the action row is empty (see actionsForStatus
-  // comment), so without this the vendor sees no textual acknowledgement of
-  // the Invoice Client tap — only the InvoiceCard rendered above. Derived
-  // purely from the latest non-quote invoice's status. Spliced in right after
-  // its InvoiceCard so the read order is card → confirmation.
-  if (job.status === 'invoiced') {
+  // While job_status === 'completed' AND an invoice exists, splice in a
+  // system-marker confirmation for the latest invoice's settlement state.
+  // Derived purely from the latest non-quote invoice's status. Spliced in
+  // right after its InvoiceCard so the read order is card → confirmation.
+  if (job.job_status === 'completed') {
     const latest = latestNonQuoteInvoice(invoiceCards);
     if (latest) {
       const text = invoiceStatusMarkerText(latest.status);
@@ -335,7 +335,7 @@ export function buildTimeline(
   }
 
   // --- Footer: action card row OR terminal-state footer marker ---
-  const footer = footerForStatus(job.status);
+  const footer = footerForStatus(job.job_status);
   if (footer) {
     items.push({
       kind: 'footer_marker',
@@ -344,7 +344,7 @@ export function buildTimeline(
       tone: footer.tone,
     });
   } else {
-    const actions = actionsForStatus(job.status);
+    const actions = actionsForStatus(job.job_status);
     if (actions.length > 0) {
       items.push({ kind: 'action_card_row', id: 'actions', actions });
     }
@@ -353,13 +353,31 @@ export function buildTimeline(
   return items;
 }
 
-// jobs.client_name stores the full name (e.g. "Sarah Mitchell"). The chat
-// surface only shows the first token — full identity stays out of the
-// vendor UI per the contract.
+// The chat surface only shows the customer's first name — full identity
+// stays out of the vendor UI per the privacy contract.
+export function firstNameOfClient(client: ClientEmbed | null): string | null {
+  if (!client) return null;
+  const first = (client.first_name ?? '').trim();
+  return first.length > 0 ? first : null;
+}
+
+// Backwards-compatible helper kept for the few callsites that still pass a
+// pre-joined string (search results, etc).
 export function firstNameOf(name: string | null): string | null {
   if (!name) return null;
   const first = name.trim().split(/\s+/)[0];
   return first && first.length > 0 ? first : null;
+}
+
+// Derive a display "Full Name" from an embedded client. Returns null when
+// both name parts are missing.
+export function fullNameOfClient(client: ClientEmbed | null): string | null {
+  if (!client) return null;
+  const joined = [client.first_name, client.last_name]
+    .filter((s): s is string => !!s && s.trim().length > 0)
+    .join(' ')
+    .trim();
+  return joined.length > 0 ? joined : null;
 }
 
 function prettyTrade(slug: string): string {
@@ -374,9 +392,7 @@ function prettyTrade(slug: string): string {
 
 // Pick the invoice (kind !== 'quote') most likely to represent the job's
 // current invoicing state — latest by sent_at, falling back to created_at.
-// Returns null if the job has only quotes or no invoices at all (data
-// inconsistency: job.status === 'invoiced' but no row exists — caller
-// silently skips the marker).
+// Returns null if the job has only quotes or no invoices at all.
 function latestNonQuoteInvoice(
   invoiceCards: { invoice: Invoice; items: InvoiceItem[] }[],
 ): Invoice | null {
@@ -394,9 +410,7 @@ function latestNonQuoteInvoice(
 }
 
 // Maps invoice.status → textual confirmation shown as a system marker.
-// Returns null for statuses that get no marker: 'draft' (never reaches the
-// timeline anyway — send_invoice RPC inserts directly as 'sent'), 'overdue'
-// and 'cancelled' (handled by other surfaces or out of scope per spec).
+// Returns null for statuses that get no marker.
 function invoiceStatusMarkerText(status: string): string | null {
   switch (status) {
     case 'sent':
@@ -415,9 +429,9 @@ function invoiceStatusMarkerText(status: string): string | null {
 
 function slaBannerText(job: Job): string {
   // Figma shows "4 Hour - 2.5 Miles Away". The hour figure is a function
-  // of urgency; distance comes from GPS (not available in this pure
+  // of priority; distance comes from GPS (not available in this pure
   // builder, so we use eta_label as a hint when present).
-  const hour = job.urgency === 'emergency' ? '2 Hour' : '4 Hour';
+  const hour = job.priority === 'High' ? '2 Hour' : '4 Hour';
   if (job.eta_label) return `${hour} - ${job.eta_label}`;
   return hour;
 }

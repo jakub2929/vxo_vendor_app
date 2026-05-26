@@ -14,7 +14,7 @@ import {
 } from '@/theme/invoiceStatusColors';
 import { formatJobNumber, formatMoney } from '@/utils/formatters';
 import type { EarningsRow } from './types';
-import { toMoney } from './types';
+import { clientNameFromRow, serviceTypeFromRow, toMoney } from './types';
 
 // Which timestamp to display per section. For pending: when it was sent.
 // For paid: when it was paid. The pending-quotes section also uses sent_at.
@@ -35,8 +35,8 @@ export function EarningsCard({ invoice, dateField = 'sent_at', onPress }: Props)
 
   const total = toMoney(invoice.total);
   const jobNumber = formatJobNumber(invoice.job_id);
-  const clientName = invoice.jobs?.client_name?.trim() || null;
-  const trade = invoice.jobs?.trade ?? null;
+  const clientName = clientNameFromRow(invoice);
+  const trade = serviceTypeFromRow(invoice);
   // Subtitle prefers client name; falls back to trade if missing (older mock
   // rows often have no client_name).
   const subtitle = clientName ?? trade ?? '—';
