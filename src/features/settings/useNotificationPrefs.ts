@@ -46,7 +46,7 @@ export function useNotificationPrefs() {
       setCachedVendor({ ...vendor, notification_prefs: updated });
 
       const { error } = await supabase
-        .from('vendors')
+        .from('vendor_profiles')
         .update({ notification_prefs: updated })
         .eq('id', vendor.id);
       if (error) throw error;

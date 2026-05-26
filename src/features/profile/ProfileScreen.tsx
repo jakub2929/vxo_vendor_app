@@ -84,6 +84,9 @@ const assetSchema = z
   })
   .optional();
 
+// Phase 5: vendor_profiles splits the legacy single-line `address` into
+// state/city/zipcode and renames zip_code → zipcode. Form names track DB
+// columns 1:1 so the submit handler stays a straight passthrough.
 const schema = z.object({
   fullName: z.string().min(2, 'Required'),
   businessName: z.string().min(2, 'Required'),
@@ -96,8 +99,9 @@ const schema = z.object({
       (v) => phoneDigitsOnly(v).length === 10,
       'Enter a 10-digit US phone number',
     ),
-  address: z.string().trim().min(3, 'Address is required'),
-  zip_code: z.string().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code'),
+  state: z.string().trim().min(2, 'State is required'),
+  city: z.string().trim().min(2, 'City is required'),
+  zipcode: z.string().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code'),
   about: z.string().optional(),
   insured: z.boolean(),
   radius_miles: z
@@ -120,6 +124,10 @@ function parseTrades(raw: unknown): Trade[] {
     (TRADES as readonly string[]).includes(t as string),
   );
 }
+
+// vendor_profiles.service_categories is text[] on Ryan's schema. JSON-array
+// fallback covers a legacy null/jsonb shape if Supabase typing relaxes back
+// to Json in a future regen.
 
 export function ProfileScreen() {
   const { vendor, loading, refresh } = useVendor();
@@ -144,8 +152,9 @@ export function ProfileScreen() {
       businessName: '',
       trades: [],
       phone: '',
-      address: '',
-      zip_code: '',
+      state: '',
+      city: '',
+      zipcode: '',
       about: '',
       insured: false,
       radius_miles: 25,
@@ -162,15 +171,16 @@ export function ProfileScreen() {
     if (!vendor) return;
     reset({
       fullName: vendor.name ?? '',
-      businessName: vendor.business ?? '',
-      trades: parseTrades(vendor.trades),
+      businessName: vendor.business_name ?? '',
+      trades: parseTrades(vendor.service_categories),
       // DB stores digits-only; re-run the mask so the input shows
       // "(555) 123-4567" on first render. Empty/null vendors get '' and the
       // refine() error will surface on first save attempt.
       phone: formatPhoneInput(vendor.phone ?? ''),
-      address: vendor.address ?? '',
-      zip_code: vendor.zip_code ?? '',
-      about: vendor.bio ?? '',
+      state: vendor.state ?? '',
+      city: vendor.city ?? '',
+      zipcode: vendor.zipcode ?? '',
+      about: vendor.about ?? '',
       insured: vendor.insured ?? false,
       radius_miles: vendor.radius_miles ?? 25,
       avatar: undefined,
@@ -348,15 +358,16 @@ export function ProfileScreen() {
       ]);
       const [avatarRes, coiRes, w9Res] = uploads;
 
-      const patch: Database['public']['Tables']['vendors']['Update'] = {
+      const patch: Database['public']['Tables']['vendor_profiles']['Update'] = {
         name: values.fullName,
-        business: values.businessName,
-        trades: values.trades,
+        business_name: values.businessName,
+        service_categories: values.trades,
         // Stripped to digits-only on submit; UI keeps the formatted form.
         phone: phoneDigitsOnly(values.phone),
-        address: values.address.trim(),
-        zip_code: values.zip_code,
-        bio: values.about ?? null,
+        state: values.state.trim(),
+        city: values.city.trim(),
+        zipcode: values.zipcode,
+        about: values.about ?? null,
         insured: values.insured,
         radius_miles: values.radius_miles,
       };
@@ -370,11 +381,12 @@ export function ProfileScreen() {
         patch.w9_path = w9Res.value;
       }
 
-      // Filter by email to match the vendors RLS USING clause exactly (see
-      // supabase/migrations/003_rls_policies.sql). `.single()` surfaces the
-      // no-rows case as PGRST116 error, so RLS-silent-filter still fails loud.
+      // Filter by email to match the vendor_profiles RLS USING clause exactly
+      // (see supabase/migrations/003_rls_policies.sql). `.single()` surfaces
+      // the no-rows case as PGRST116 error, so RLS-silent-filter still fails
+      // loud.
       const { data, error } = await supabase
-        .from('vendors')
+        .from('vendor_profiles')
         .update(patch)
         .eq('email', vendor.email)
         .select()
@@ -544,18 +556,18 @@ export function ProfileScreen() {
 
           <Controller
             control={control}
-            name="address"
+            name="state"
             render={({ field: { value, onChange, onBlur } }) => (
-              <FieldShell error={errors.address?.message}>
+              <FieldShell error={errors.state?.message}>
                 <TextInput
                   style={styles.input}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
-                  placeholder="Street Address"
+                  placeholder="State"
                   placeholderTextColor={colors.text.tertiary}
-                  autoComplete="street-address"
-                  textContentType="fullStreetAddress"
+                  autoComplete="postal-address-region"
+                  textContentType="addressState"
                   autoCapitalize="words"
                 />
               </FieldShell>
@@ -564,9 +576,29 @@ export function ProfileScreen() {
 
           <Controller
             control={control}
-            name="zip_code"
+            name="city"
             render={({ field: { value, onChange, onBlur } }) => (
-              <FieldShell error={errors.zip_code?.message}>
+              <FieldShell error={errors.city?.message}>
+                <TextInput
+                  style={styles.input}
+                  value={value}
+                  onChangeText={onChange}
+                  onBlur={onBlur}
+                  placeholder="City"
+                  placeholderTextColor={colors.text.tertiary}
+                  autoComplete="postal-address-locality"
+                  textContentType="addressCity"
+                  autoCapitalize="words"
+                />
+              </FieldShell>
+            )}
+          />
+
+          <Controller
+            control={control}
+            name="zipcode"
+            render={({ field: { value, onChange, onBlur } }) => (
+              <FieldShell error={errors.zipcode?.message}>
                 <TextInput
                   style={styles.input}
                   value={value}

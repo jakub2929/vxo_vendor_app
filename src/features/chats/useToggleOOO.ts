@@ -4,13 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { setCachedVendor } from '@/lib/vendorCache';
 import type { Database } from '@/types/database';
 
-type Vendor = Database['public']['Tables']['vendors']['Row'];
+type Vendor = Database['public']['Tables']['vendor_profiles']['Row'];
 type ToggleStatus = 'active' | 'out_of_office';
 
-// Flip vendors.status between 'active' and 'out_of_office'. Optimistic local
-// cache update on success; useVendorRealtime echoes the UPDATE to other
-// devices once the vendors table is in the supabase_realtime publication
-// (see supabase/schema/add-vendors-to-realtime.sql — staged for Ryan).
+// Flip vendor_profiles.status between 'active' and 'out_of_office'.
+// Optimistic local cache update on success; useVendorRealtime echoes the
+// UPDATE to other devices once the vendor_profiles table is in the
+// supabase_realtime publication.
 //
 // RLS caveat: vendor_own (003_rls_policies.sql) is FOR ALL with no WITH CHECK
 // and no column restriction, so this UPDATE could in principle touch any
@@ -27,7 +27,7 @@ export function useToggleOOO(vendor: Vendor | null) {
       setPending(true);
       try {
         const { error } = await supabase
-          .from('vendors')
+          .from('vendor_profiles')
           .update({ status: target })
           .eq('id', vendor.id);
         if (error) {

@@ -73,6 +73,9 @@ const assetSchema = z
   })
   .optional();
 
+// Phase 5: vendor_profiles splits the legacy single-line `address` into
+// state/city/zipcode and renames zip_code → zipcode. Form field names track
+// DB columns 1:1.
 const schema = z.object({
   fullName: z.string().min(2, 'Required'),
   businessName: z.string().min(2, 'Required'),
@@ -88,8 +91,9 @@ const schema = z.object({
       (v) => phoneDigitsOnly(v).length === 10,
       'Enter a 10-digit US phone number',
     ),
-  address: z.string().trim().min(3, 'Address is required'),
-  zip_code: z.string().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code'),
+  state: z.string().trim().min(2, 'State is required'),
+  city: z.string().trim().min(2, 'City is required'),
+  zipcode: z.string().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code'),
   about: z.string().optional(),
   insured: z.boolean(),
   radius_miles: z
@@ -158,8 +162,9 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       trades: [],
       email: initialEmail ?? '',
       phone: '',
-      address: '',
-      zip_code: '',
+      state: '',
+      city: '',
+      zipcode: '',
       about: '',
       insured: false,
       radius_miles: 25,
@@ -296,9 +301,10 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       const { data: userRes } = await supabase.auth.getUser();
       const userEmail = userRes.user?.email ?? values.email;
 
-      // Step 1: upsert the vendor row. We need vendor.id back to namespace
-      // Storage paths and satisfy bucket RLS (which subselects vendors by
-      // auth.jwt() email — the row must exist before uploads).
+      // Step 1: upsert the vendor_profiles row. We need vendor.id back to
+      // namespace Storage paths and satisfy bucket RLS (which subselects
+      // vendor_profiles by auth.jwt() email — the row must exist before
+      // uploads).
       //
       // Pre-check existence so we only send status='pending' on a true insert.
       // The vendor_status_change_guard trigger (supabase/schema/harden-vendors-rls.sql)
@@ -306,29 +312,30 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       // so re-running this flow for an already-active vendor would fail if we
       // always sent status='pending'.
       const { data: existing } = await supabase
-        .from('vendors')
+        .from('vendor_profiles')
         .select('id')
         .eq('email', userEmail)
         .maybeSingle();
 
-      type VendorInsert = Database['public']['Tables']['vendors']['Insert'];
+      type VendorInsert = Database['public']['Tables']['vendor_profiles']['Insert'];
       const upsertPayload: VendorInsert = {
         email: userEmail,
         name: values.fullName,
-        business: values.businessName,
-        trades: values.trades,
-        bio: values.about ?? null,
+        business_name: values.businessName,
+        service_categories: values.trades,
+        about: values.about ?? null,
         // Stripped to digits-only on submit; UI keeps the formatted form.
         phone: phoneDigitsOnly(values.phone),
-        address: values.address.trim(),
-        zip_code: values.zip_code,
+        state: values.state.trim(),
+        city: values.city.trim(),
+        zipcode: values.zipcode,
         insured: values.insured,
         radius_miles: values.radius_miles,
         ...(existing ? {} : { status: 'pending' as const }),
       };
 
       const { data: vendorRow, error: upsertError } = await supabase
-        .from('vendors')
+        .from('vendor_profiles')
         .upsert(upsertPayload, { onConflict: 'email' })
         .select()
         .single();
@@ -370,7 +377,7 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       ]);
 
       const [avatarRes, coiRes, w9Res] = uploads;
-      const pathPatch: Database['public']['Tables']['vendors']['Update'] = {};
+      const pathPatch: Database['public']['Tables']['vendor_profiles']['Update'] = {};
       if (avatarRes.status === 'fulfilled' && avatarRes.value) {
         pathPatch.avatar_path = avatarRes.value;
       }
@@ -384,7 +391,7 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
       // Step 3: persist paths back to the row if we got any.
       if (Object.keys(pathPatch).length > 0) {
         const { error: patchError } = await supabase
-          .from('vendors')
+          .from('vendor_profiles')
           .update(pathPatch)
           .eq('id', vendorRow.id);
         if (patchError) {
@@ -553,18 +560,18 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
 
             <Controller
               control={control}
-              name="address"
+              name="state"
               render={({ field: { value, onChange, onBlur } }) => (
-                <FieldShell error={errors.address?.message}>
+                <FieldShell error={errors.state?.message}>
                   <TextInput
                     style={styles.input}
                     value={value}
                     onChangeText={onChange}
                     onBlur={onBlur}
-                    placeholder="Street Address"
+                    placeholder="State"
                     placeholderTextColor={colors.text.tertiary}
-                    autoComplete="street-address"
-                    textContentType="fullStreetAddress"
+                    autoComplete="postal-address-region"
+                    textContentType="addressState"
                     autoCapitalize="words"
                   />
                 </FieldShell>
@@ -573,9 +580,29 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
 
             <Controller
               control={control}
-              name="zip_code"
+              name="city"
               render={({ field: { value, onChange, onBlur } }) => (
-                <FieldShell error={errors.zip_code?.message}>
+                <FieldShell error={errors.city?.message}>
+                  <TextInput
+                    style={styles.input}
+                    value={value}
+                    onChangeText={onChange}
+                    onBlur={onBlur}
+                    placeholder="City"
+                    placeholderTextColor={colors.text.tertiary}
+                    autoComplete="postal-address-locality"
+                    textContentType="addressCity"
+                    autoCapitalize="words"
+                  />
+                </FieldShell>
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="zipcode"
+              render={({ field: { value, onChange, onBlur } }) => (
+                <FieldShell error={errors.zipcode?.message}>
                   <TextInput
                     style={styles.input}
                     value={value}
