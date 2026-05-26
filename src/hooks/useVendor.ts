@@ -6,7 +6,7 @@ import {
 } from '@/lib/vendorCache';
 import type { Database } from '@/types/database';
 
-type Vendor = Database['public']['Tables']['vendors']['Row'];
+type Vendor = Database['public']['Tables']['vendor_profiles']['Row'];
 
 export function useVendor() {
   const [vendor, setVendor] = useState<Vendor | null>(getCachedVendor());

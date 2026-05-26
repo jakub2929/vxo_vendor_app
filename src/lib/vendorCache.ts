@@ -1,7 +1,7 @@
 import type { Database } from '@/types/database';
 import { supabase } from './supabase';
 
-type Vendor = Database['public']['Tables']['vendors']['Row'];
+type Vendor = Database['public']['Tables']['vendor_profiles']['Row'];
 
 let cachedVendor: Vendor | null = null;
 let inFlight: Promise<Vendor | null> | null = null;
@@ -33,7 +33,7 @@ export async function getVendor(forceRefresh = false): Promise<Vendor | null> {
       } = await supabase.auth.getUser();
       if (!user?.email) return null;
       const { data, error } = await supabase
-        .from('vendors')
+        .from('vendor_profiles')
         .select('*')
         .eq('email', user.email)
         .maybeSingle();

@@ -10,10 +10,10 @@ import { refreshVendorCache } from '@/lib/vendorCache';
 // Channel naming: `vendor:${vendorId}` — distinct from `chat:${jobId}` and
 // `jobs-list:${vendorId}` so the Realtime server multiplexes cleanly.
 //
-// Requires the `vendors` table to be in the `supabase_realtime` publication.
-// See supabase/schema/add-vendors-to-realtime.sql — staged for Ryan to apply
-// in prod. RLS already covers the SELECT permission (vendor_own policy in
-// 003_rls_policies.sql).
+// Requires the `vendor_profiles` table to be in the `supabase_realtime`
+// publication. See supabase/schema/add-vendors-to-realtime.sql — staged for
+// Ryan to apply in prod. RLS already covers the SELECT permission (vendor_own
+// policy in 003_rls_policies.sql).
 export function useVendorRealtime(vendorId: string | null | undefined) {
   useEffect(() => {
     if (!vendorId) return;
@@ -25,7 +25,7 @@ export function useVendorRealtime(vendorId: string | null | undefined) {
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'vendors',
+          table: 'vendor_profiles',
           filter: `id=eq.${vendorId}`,
         },
         () => {
