@@ -3,13 +3,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { USE_MOCKS } from './useHomeData';
 
-// Subscribe to *job* changes for this vendor and invalidate the Home tab
-// queries on any change. Invoice events used to live here too, but moved to
-// useInvoicesRealtime (Phase 3 Track B) so a single hook owns the invoice
-// event story (toasts + both ['home'] and ['earnings'] invalidations).
-// useJobsRealtime is a separate hook with a different channel name and
-// invalidation key (['jobs']) — both can coexist because they invalidate
-// different query trees.
+// Subscribe to *per-vendor* request changes and invalidate the Home tab
+// queries on any change.
+//
+// Phase 5: subscribes to the request_vendors M2M table filtered by the
+// current vendor_id. job_status / va_confirmed_* edits on that join row
+// arrive here; underlying vendor_requests row edits do too, indirectly,
+// since most lifecycle writes touch the join. Invoice events live in
+// useInvoicesRealtime.
 //
 // USE_MOCKS bypass mirrors the other Realtime hooks so the Phase 3 smoke
 // test (EXPO_PUBLIC_FORCE_REAL_DATA=1) activates fetches and subscriptions
@@ -29,8 +30,8 @@ export function useHomeRealtime(vendorId: string | null | undefined) {
         {
           event: '*',
           schema: 'public',
-          table: 'jobs',
-          filter: `assigned_vendor_id=eq.${vendorId}`,
+          table: 'request_vendors',
+          filter: `vendor_id=eq.${vendorId}`,
         },
         () => {
           void qc.invalidateQueries({ queryKey: ['home'] });

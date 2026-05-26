@@ -8,6 +8,9 @@ import { supabase } from '@/lib/supabase';
 // from Home is fine: only one of the two top-strip tabs is mounted at a
 // time, so we never have both subscriptions live concurrently. Bypassed
 // when USE_MOCKS is on — mocks are static.
+//
+// Phase 5: subscribes to request_vendors (per-vendor M2M join) — job_status
+// changes there drive every row-level update we care about in the list.
 export function useJobsRealtime(vendorId: string | null | undefined) {
   const qc = useQueryClient();
 
@@ -25,8 +28,8 @@ export function useJobsRealtime(vendorId: string | null | undefined) {
         {
           event: '*',
           schema: 'public',
-          table: 'jobs',
-          filter: `assigned_vendor_id=eq.${vendorId}`,
+          table: 'request_vendors',
+          filter: `vendor_id=eq.${vendorId}`,
         },
         invalidate,
       )

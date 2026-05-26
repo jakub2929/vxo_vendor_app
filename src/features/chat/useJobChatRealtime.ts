@@ -27,7 +27,7 @@ export function useJobChatRealtime(jobId: string | null | undefined) {
           event: 'INSERT',
           schema: 'public',
           table: 'job_messages',
-          filter: `job_id=eq.${jobId}`,
+          filter: `request_id=eq.${jobId}`,
         },
         () => {
           void qc.invalidateQueries({
