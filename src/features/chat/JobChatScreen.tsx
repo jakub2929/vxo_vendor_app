@@ -186,34 +186,15 @@ export function JobChatScreen({ jobId }: Props) {
       return;
     }
 
-    const { error: rpcError } = await supabase.rpc('mark_on_site', {
-      p_job_id: job.id,
-    });
-    if (rpcError) {
-      // Already on_site (auto-fire after the GPS check raced a manual tap),
-      // or back-end is rejecting — only nag the user on genuinely surprising
-      // errors. 22023 is the wrong-status RAISE; treat as silent no-op.
-      if (rpcError.code !== '22023') {
-        console.warn('[arrival] mark_on_site failed:', rpcError.message);
-        Alert.alert("Couldn't mark on site", rpcError.message);
-      }
-      return;
-    }
-
-    try {
-      const { error: msgError } = await supabase.from('job_messages').insert({
-        request_id: job.id,
-        sender: 'system',
-        message: '📍 Arrived on site',
-      });
-      if (msgError) {
-        console.warn('[arrival] system message insert failed:', msgError.message);
-      }
-    } catch (err) {
-      console.warn('[arrival] system message insert threw:', err);
-    }
-
-    await invalidateAfterTransition();
+    // BLOCKED: Phase 5B — mark_on_site RPC targets the legacy jobs.status
+    // enum. Ryan acknowledged 2026-05-21 (WhatsApp) and will reissue against
+    // request_vendors.job_status. Stubbed in the meantime so the action card
+    // doesn't surface a confusing 42703 from the server.
+    Alert.alert(
+      'Coming soon',
+      'Arrival check-in is temporarily unavailable while we finalize the dispatch system. Please check back shortly.',
+    );
+    void invalidateAfterTransition;
   }, [job]);
 
   // GPS auto-detection: on mount + on every bg→fg transition. Silent on
@@ -233,14 +214,14 @@ export function JobChatScreen({ jobId }: Props) {
             content: 'You Accepted. Need to Reject. Press Here.',
           });
         } else {
-          const { error } = await supabase.rpc('accept_job', {
-            p_job_id: job.id,
-          });
-          if (error) {
-            Alert.alert("Couldn't accept", error.message);
-            return;
-          }
-          await invalidateAfterTransition();
+          // BLOCKED: Phase 5B — claim_job (the old accept_job RPC) is the
+          // ticket Ryan flagged as broken 2026-05-21. Reissue pending
+          // against request_vendors.job_status semantics. See WhatsApp
+          // 2026-05-21 (Ryan acknowledged, will fix).
+          Alert.alert(
+            'Coming soon',
+            'Accept flow is temporarily unavailable while we finalize the dispatch system. Please try again shortly.',
+          );
         }
         break;
 
@@ -253,14 +234,12 @@ export function JobChatScreen({ jobId }: Props) {
           });
           // (status is per-vendor job_status — see mockChatState.)
         } else {
-          const { error } = await supabase.rpc('reject_job', {
-            p_job_id: job.id,
-          });
-          if (error) {
-            Alert.alert("Couldn't reject", error.message);
-            return;
-          }
-          await invalidateAfterTransition();
+          // BLOCKED: Phase 5B — reject_job RPC pending reissue against
+          // request_vendors.job_status (see notes on the accept case).
+          Alert.alert(
+            'Coming soon',
+            'Decline flow is temporarily unavailable while we finalize the dispatch system. Please try again shortly.',
+          );
         }
         break;
 
@@ -279,18 +258,17 @@ export function JobChatScreen({ jobId }: Props) {
               'Get Directions. Client has been notified you are on the way. Click here to cancel.',
           });
         } else {
+          // BLOCKED: Phase 5B — start_travel RPC pending reissue against
+          // request_vendors.job_status. We still open Maps so the vendor
+          // can route, but the status flip is suppressed until the reissue
+          // lands; surface a brief toast-like Alert so they know the
+          // dispatcher won't see the transition.
           if (job.job_status === 'in_progress') {
-            const { error } = await supabase.rpc('start_travel', {
-              p_job_id: job.id,
-            });
-            if (error) {
-              Alert.alert("Couldn't start travel", error.message);
-              return;
-            }
-            await invalidateAfterTransition();
+            Alert.alert(
+              'On the way',
+              "We've opened directions. The dispatcher will be notified once we re-enable status updates — until then, please mark arrival manually.",
+            );
           }
-          // Re-open Maps regardless of whether this was the first tap or a
-          // re-tap during on_the_way.
           openMapsForJob(job);
         }
         break;
@@ -349,21 +327,17 @@ export function JobChatScreen({ jobId }: Props) {
         return { ok: true };
       }
 
-      const { error } = await supabase.rpc('complete_job', {
-        p_job_id: job.id,
-        p_photo_ids: paths,
-      });
-      if (error) {
-        Alert.alert("Couldn't complete job", error.message);
-        return { ok: false };
-      }
-      await invalidateAfterTransition();
+      // BLOCKED: Phase 5B — complete_job RPC pending reissue against
+      // request_vendors.job_status. Photos are already uploaded to Storage
+      // by the time we get here, so we surface the success-of-upload toast
+      // but suppress the status transition until the reissue lands.
+      void paths;
+      Alert.alert(
+        'Coming soon',
+        'Marking jobs complete is temporarily unavailable while we finalize the dispatch system. Your photos have been saved — please try again shortly.',
+      );
       setCompletionSheetOpen(false);
-      showToast({
-        title: 'Job complete',
-        body: `${paths.length} photo${paths.length === 1 ? '' : 's'} uploaded.`,
-      });
-      return { ok: true };
+      return { ok: false };
     },
     [job],
   );
