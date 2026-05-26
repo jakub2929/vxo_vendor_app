@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useVendor } from '@/hooks/useVendor';
 
@@ -13,38 +14,58 @@ import { useVendor } from '@/hooks/useVendor';
 // (OS update, app reinstall, permission revoke+regrant), and a stale token
 // means lost deliveries until the next cold start. Listener is scoped to the
 // authed lifetime so we never UPDATE with `id=null` on a signed-out device.
+//
+// Phase 5: writes go to device_tokens keyed by auth.users.id + platform
+// (no longer a column on vendor_profiles). Upsert with onConflict so token
+// rotation overwrites in place.
 export function useNotificationToken() {
   const { vendor } = useVendor();
 
   useEffect(() => {
     if (!vendor?.id) return;
 
-    const vendorId = vendor.id;
-    void registerForPushNotifications(vendorId);
+    let cancelled = false;
+    let subscription: { remove: () => void } | undefined;
 
-    const subscription = Notifications.addPushTokenListener((event) => {
-      void persistToken(vendorId, event.data);
-    });
+    void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const userId = user?.id;
+      if (!userId || cancelled) return;
+
+      await registerForPushNotifications(userId);
+
+      if (cancelled) return;
+      subscription = Notifications.addPushTokenListener((event) => {
+        void persistToken(userId, event.data);
+      });
+    })();
 
     return () => {
-      subscription.remove();
+      cancelled = true;
+      subscription?.remove();
     };
   }, [vendor?.id]);
 }
 
-async function persistToken(vendorId: string, token: string): Promise<void> {
+async function persistToken(userId: string, token: string): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('vendors')
-      .update({ expo_push_token: token })
-      .eq('id', vendorId);
+    const { error } = await supabase.from('device_tokens').upsert(
+      {
+        user_id: userId,
+        token,
+        platform: Platform.OS,
+      },
+      { onConflict: 'user_id,platform' },
+    );
     if (error) console.error('[push] Token upload failed:', error);
   } catch (e) {
     console.error('[push] Token upload threw:', e);
   }
 }
 
-async function registerForPushNotifications(vendorId: string) {
+async function registerForPushNotifications(userId: string) {
   if (!Device.isDevice) {
     // iOS Simulator / Android emulator can't receive push. Surface to dev
     // console only — no user-facing alert.
@@ -85,5 +106,5 @@ async function registerForPushNotifications(vendorId: string) {
   }
   console.log('[push:debug] Expo push token:', token); // TODO: remove before production
 
-  await persistToken(vendorId, token);
+  await persistToken(userId, token);
 }

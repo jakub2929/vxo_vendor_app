@@ -1,57 +1,56 @@
+import { Platform } from 'react-native';
 import { clearAllAuth, clearUnlockedSession } from './pinStore';
 import { supabase } from './supabase';
 import { clearVendorCache } from './vendorCache';
 
 export async function signOut() {
-  // Clear this device's expo_push_token from the vendor row BEFORE dropping
-  // the session — otherwise the next vendor to sign in on the same device
-  // inherits push routing for the previous user. Best-effort: any failure here
-  // (network, RLS, missing row) must NOT block the supabase.auth.signOut()
-  // call that follows.
+  // Drop this device's push token row BEFORE the session is cleared —
+  // otherwise the next vendor to sign in on the same device inherits push
+  // routing for the previous user. Best-effort: any failure here (network,
+  // RLS, missing row) must NOT block the supabase.auth.signOut() that
+  // follows.
+  //
+  // Phase 5: writes go to device_tokens (user_id + platform composite key)
+  // rather than the old vendors.expo_push_token column.
   try {
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const email = user?.email;
+    const userId = user?.id;
 
-    if (!email) {
+    if (!userId) {
       console.warn(
-        '[auth/signout] no authed email — skipping push token clear',
+        '[auth/signout] no authed user — skipping push token clear',
       );
     } else {
-      console.log('[auth/signout] clearing push token for', email);
-      // .select() so PostgREST returns the affected rows. Without it, `data`
-      // is null and we can't distinguish "wrote to 1 row" from "RLS silently
-      // matched 0 rows" — both come back as { data: null, error: null }.
       const { data, error } = await supabase
-        .from('vendors')
-        .update({ expo_push_token: null })
-        .eq('email', email)
+        .from('device_tokens')
+        .delete()
+        .eq('user_id', userId)
+        .eq('platform', Platform.OS)
         .select('id');
 
       if (error) {
         console.error(
-          '[auth/signout] failed to clear push token:',
+          '[auth/signout] failed to clear device token:',
           error.message,
         );
       } else if (!data || data.length === 0) {
-        // RLS-silent no-op or no matching row. Most likely cause: the vendors
-        // row's email doesn't match auth.jwt()->>'email' (case, whitespace,
-        // missing row), or the UPDATE policy is missing. Surface loudly.
         console.warn(
-          '[auth/signout] push token clear matched 0 rows for',
-          email,
-          '— check vendors RLS UPDATE policy and row exists',
+          '[auth/signout] device token clear matched 0 rows for',
+          userId,
+          Platform.OS,
+          '— first sign-in on this device, or RLS DELETE policy missing',
         );
       } else {
         console.log(
-          '[auth/signout] push token cleared',
+          '[auth/signout] device token cleared',
           `(${data.length} row${data.length === 1 ? '' : 's'})`,
         );
       }
     }
   } catch (e) {
-    console.error('[auth/signout] push token clear threw', e);
+    console.error('[auth/signout] device token clear threw', e);
   }
 
   const result = await supabase.auth.signOut();

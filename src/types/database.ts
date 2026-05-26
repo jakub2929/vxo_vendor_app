@@ -1,3 +1,13 @@
+// Manually aligned with Ryan's prod schema (baspxigjzkrotqxmpygf) as of
+// 2026-05-21. Re-run `supabase gen types typescript --linked` once CLI access
+// to the prod project is available. Until then this file is the source of
+// truth for table/column shapes the vendor app reads & writes.
+//
+// Phase 5 migration: vendors → vendor_profiles, jobs → vendor_requests,
+// direct assigned_vendor_id FK → request_vendors (M2M), expo_push_token
+// → device_tokens table, client fields (client_name/email/phone) → profiles
+// join via client_id. job_messages.content → message, .job_id → request_id.
+
 export type Json =
   | string
   | number
@@ -14,41 +24,300 @@ export type Database = {
   }
   public: {
     Tables: {
-      dispatch_log: {
+      vendor_profiles: {
+        // service_area is a legacy compatibility column on Ryan's schema, kept
+        // optional until business_name is fully rolled out. address as a
+        // single text field is gone — use state/city/zipcode instead.
         Row: {
-          action: string
+          about: string | null
+          avatar_path: string | null
+          business_name: string | null
+          city: string | null
+          coi_path: string | null
           created_at: string | null
+          email: string | null
           id: string
-          job_id: string | null
-          vendor_id: string | null
+          insured: boolean | null
+          license_number: string | null
+          name: string
+          notification_prefs: Json | null
+          phone: string | null
+          radius_miles: number | null
+          rating: number | null
+          service_area: string | null
+          service_categories: string[] | null
+          state: string | null
+          status: string | null
+          stripe_account_id: string | null
+          updated_at: string | null
+          user_id: string | null
+          w9_path: string | null
+          zipcode: string | null
         }
         Insert: {
-          action: string
+          about?: string | null
+          avatar_path?: string | null
+          business_name?: string | null
+          city?: string | null
+          coi_path?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
-          job_id?: string | null
-          vendor_id?: string | null
+          insured?: boolean | null
+          license_number?: string | null
+          name: string
+          notification_prefs?: Json | null
+          phone?: string | null
+          radius_miles?: number | null
+          rating?: number | null
+          service_area?: string | null
+          service_categories?: string[] | null
+          state?: string | null
+          status?: string | null
+          stripe_account_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          w9_path?: string | null
+          zipcode?: string | null
         }
         Update: {
-          action?: string
+          about?: string | null
+          avatar_path?: string | null
+          business_name?: string | null
+          city?: string | null
+          coi_path?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
-          job_id?: string | null
-          vendor_id?: string | null
+          insured?: boolean | null
+          license_number?: string | null
+          name?: string
+          notification_prefs?: Json | null
+          phone?: string | null
+          radius_miles?: number | null
+          rating?: number | null
+          service_area?: string | null
+          service_categories?: string[] | null
+          state?: string | null
+          status?: string | null
+          stripe_account_id?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          w9_path?: string | null
+          zipcode?: string | null
+        }
+        Relationships: []
+      }
+      vendor_requests: {
+        Row: {
+          admin_notes: string | null
+          checkin_time: string | null
+          checkout_time: string | null
+          client_id: string | null
+          completion_photo_ids: string[] | null
+          created_at: string | null
+          description: string | null
+          eta_datetime: string | null
+          eta_label: string | null
+          id: string
+          location: string | null
+          priority: string | null
+          service_type: string
+          status: string
+          stripe_payment_id: string | null
+          zipcode: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          checkin_time?: string | null
+          checkout_time?: string | null
+          client_id?: string | null
+          completion_photo_ids?: string[] | null
+          created_at?: string | null
+          description?: string | null
+          eta_datetime?: string | null
+          eta_label?: string | null
+          id?: string
+          location?: string | null
+          priority?: string | null
+          service_type: string
+          status?: string
+          stripe_payment_id?: string | null
+          zipcode?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          checkin_time?: string | null
+          checkout_time?: string | null
+          client_id?: string | null
+          completion_photo_ids?: string[] | null
+          created_at?: string | null
+          description?: string | null
+          eta_datetime?: string | null
+          eta_label?: string | null
+          id?: string
+          location?: string | null
+          priority?: string | null
+          service_type?: string
+          status?: string
+          stripe_payment_id?: string | null
+          zipcode?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "dispatch_log_job_id_fkey"
-            columns: ["job_id"]
+            foreignKeyName: "vendor_requests_client_id_fkey"
+            columns: ["client_id"]
             isOneToOne: false
-            referencedRelation: "jobs"
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      request_vendors: {
+        // M2M join from vendor_requests to vendor_profiles. job_status is the
+        // per-vendor state (pending|in_progress|on_the_way|arrived|working|
+        // completed|cancelled) — distinct from vendor_requests.status which
+        // is the overall request state.
+        Row: {
+          created_at: string | null
+          id: string
+          job_status: string | null
+          request_id: string
+          va_confirmed_job_acceptance: boolean | null
+          va_confirmed_time: boolean | null
+          va_notes: string | null
+          vendor_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          job_status?: string | null
+          request_id: string
+          va_confirmed_job_acceptance?: boolean | null
+          va_confirmed_time?: boolean | null
+          va_notes?: string | null
+          vendor_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          job_status?: string | null
+          request_id?: string
+          va_confirmed_job_acceptance?: boolean | null
+          va_confirmed_time?: boolean | null
+          va_notes?: string | null
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_vendors_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_requests"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "dispatch_log_vendor_id_fkey"
+            foreignKeyName: "request_vendors_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
-            referencedRelation: "vendors"
+            referencedRelation: "vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        // Client (homeowner / PM) auth profile. Vendor-side reads only — we
+        // never write to this table from the vendor app.
+        Row: {
+          created_at: string | null
+          email: string | null
+          first_name: string | null
+          id: string
+          last_name: string | null
+          phone: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          first_name?: string | null
+          id: string
+          last_name?: string | null
+          phone?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          phone?: string | null
+        }
+        Relationships: []
+      }
+      device_tokens: {
+        // Replaces vendors.expo_push_token. One row per (user_id, platform).
+        // Upserts via onConflict 'user_id,platform'. user_id is auth.users.id.
+        Row: {
+          created_at: string | null
+          id: string
+          platform: string
+          token: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          platform: string
+          token: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      job_messages: {
+        // request_id is the new primary FK (uuid → vendor_requests.id).
+        // job_id is a legacy bigint kept nullable on Ryan's schema for
+        // backfill compatibility — DO NOT write to it; reads should prefer
+        // request_id. content was renamed to message.
+        Row: {
+          created_at: string | null
+          id: string
+          job_id: number | null
+          message: string
+          request_id: string | null
+          sender: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          job_id?: number | null
+          message: string
+          request_id?: string | null
+          sender: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          job_id?: number | null
+          message?: string
+          request_id?: string | null
+          sender?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_messages_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_requests"
             referencedColumns: ["id"]
           },
         ]
@@ -57,8 +326,8 @@ export type Database = {
         // The four *_at engagement timestamps (overdue_at, paid_at, sent_at,
         // viewed_at) were added in supabase/schema/add-invoice-extensions.sql.
         // valid_until was added in supabase/schema/add-quote-extensions.sql
-        // (used when kind='quote'). Manual addition pending the next
-        // `supabase gen types typescript` run.
+        // (used when kind='quote'). job_id now references vendor_requests.id,
+        // vendor_id references vendor_profiles.id (post Phase 5 rename).
         Row: {
           created_at: string | null
           description: string | null
@@ -127,14 +396,14 @@ export type Database = {
             foreignKeyName: "invoices_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
-            referencedRelation: "jobs"
+            referencedRelation: "vendor_requests"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "invoices_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
-            referencedRelation: "vendors"
+            referencedRelation: "vendor_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -176,118 +445,6 @@ export type Database = {
           },
         ]
       }
-      job_messages: {
-        Row: {
-          content: string
-          created_at: string | null
-          id: string
-          job_id: string
-          sender: string
-        }
-        Insert: {
-          content: string
-          created_at?: string | null
-          id?: string
-          job_id: string
-          sender: string
-        }
-        Update: {
-          content?: string
-          created_at?: string | null
-          id?: string
-          job_id?: string
-          sender?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "job_messages_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      jobs: {
-        Row: {
-          address: string
-          assigned_vendor_id: string | null
-          checkin_time: string | null
-          checkout_time: string | null
-          client_email: string | null
-          client_name: string | null
-          completion_photo_ids: string[] | null
-          created_at: string | null
-          description: string | null
-          dispatch_fee: number | null
-          eta_datetime: string | null
-          eta_label: string | null
-          id: string
-          location_lat: number | null
-          location_lng: number | null
-          pm_id: string | null
-          status: string
-          trade: string
-          updated_at: string | null
-          urgency: string | null
-          zip_code: string | null
-        }
-        Insert: {
-          address: string
-          assigned_vendor_id?: string | null
-          checkin_time?: string | null
-          checkout_time?: string | null
-          client_email?: string | null
-          client_name?: string | null
-          completion_photo_ids?: string[] | null
-          created_at?: string | null
-          description?: string | null
-          dispatch_fee?: number | null
-          eta_datetime?: string | null
-          eta_label?: string | null
-          id?: string
-          location_lat?: number | null
-          location_lng?: number | null
-          pm_id?: string | null
-          status?: string
-          trade: string
-          updated_at?: string | null
-          urgency?: string | null
-          zip_code?: string | null
-        }
-        Update: {
-          address?: string
-          assigned_vendor_id?: string | null
-          checkin_time?: string | null
-          checkout_time?: string | null
-          client_email?: string | null
-          client_name?: string | null
-          completion_photo_ids?: string[] | null
-          created_at?: string | null
-          description?: string | null
-          dispatch_fee?: number | null
-          eta_datetime?: string | null
-          eta_label?: string | null
-          id?: string
-          location_lat?: number | null
-          location_lng?: number | null
-          pm_id?: string | null
-          status?: string
-          trade?: string
-          updated_at?: string | null
-          urgency?: string | null
-          zip_code?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "jobs_assigned_vendor_id_fkey"
-            columns: ["assigned_vendor_id"]
-            isOneToOne: false
-            referencedRelation: "vendors"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       support_messages: {
         Row: {
           created_at: string
@@ -321,98 +478,56 @@ export type Database = {
             foreignKeyName: "support_messages_job_id_fkey"
             columns: ["job_id"]
             isOneToOne: false
-            referencedRelation: "jobs"
+            referencedRelation: "vendor_requests"
             referencedColumns: ["id"]
           },
           {
             foreignKeyName: "support_messages_vendor_id_fkey"
             columns: ["vendor_id"]
             isOneToOne: false
-            referencedRelation: "vendors"
+            referencedRelation: "vendor_profiles"
             referencedColumns: ["id"]
           },
         ]
       }
-      vendors: {
+      dispatch_log: {
         Row: {
-          address: string | null
-          avatar_path: string | null
-          bio: string | null
-          business: string | null
-          coi_path: string | null
+          action: string
           created_at: string | null
-          dispatch_fee: number | null
-          email: string | null
-          expo_push_token: string | null
           id: string
-          insured: boolean | null
-          name: string
-          // Phase 4 (add-vendor-notification-prefs.sql). Hand-typed until
-          // the next `supabase gen types` regen — TODO regen after that
-          // migration lands in prod.
-          notification_prefs: Json | null
-          pay_preference: string | null
-          phone: string | null
-          radius_miles: number | null
-          rating: number | null
-          status: string | null
-          stripe_account_id: string | null
-          trades: Json | null
-          updated_at: string | null
-          w9_path: string | null
-          zip_code: string | null
+          job_id: string | null
+          vendor_id: string | null
         }
         Insert: {
-          address?: string | null
-          avatar_path?: string | null
-          bio?: string | null
-          business?: string | null
-          coi_path?: string | null
+          action: string
           created_at?: string | null
-          dispatch_fee?: number | null
-          email?: string | null
-          expo_push_token?: string | null
           id?: string
-          insured?: boolean | null
-          name: string
-          notification_prefs?: Json | null
-          pay_preference?: string | null
-          phone?: string | null
-          radius_miles?: number | null
-          rating?: number | null
-          status?: string | null
-          stripe_account_id?: string | null
-          trades?: Json | null
-          updated_at?: string | null
-          w9_path?: string | null
-          zip_code?: string | null
+          job_id?: string | null
+          vendor_id?: string | null
         }
         Update: {
-          address?: string | null
-          avatar_path?: string | null
-          bio?: string | null
-          business?: string | null
-          coi_path?: string | null
+          action?: string
           created_at?: string | null
-          dispatch_fee?: number | null
-          email?: string | null
-          expo_push_token?: string | null
           id?: string
-          insured?: boolean | null
-          name?: string
-          notification_prefs?: Json | null
-          pay_preference?: string | null
-          phone?: string | null
-          radius_miles?: number | null
-          rating?: number | null
-          status?: string | null
-          stripe_account_id?: string | null
-          trades?: Json | null
-          updated_at?: string | null
-          w9_path?: string | null
-          zip_code?: string | null
+          job_id?: string | null
+          vendor_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_log_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_log_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -421,29 +536,30 @@ export type Database = {
     Functions: {
       // Hand-maintained. Regen by running (requires linked Supabase project):
       //   supabase gen types typescript --linked > src/types/database.ts
-      // Source of truth for these RPC signatures lives in
-      // supabase/schema/add-job-transition-rpcs.sql,
-      // supabase/schema/add-complete-job-rpc.sql, and the invoice/quote
-      // RPC files in the same directory.
+      //
+      // Phase 5B BLOCKED: the five job-transition RPCs below target the
+      // legacy jobs.status enum. Ryan has acknowledged (2026-05-21, WhatsApp)
+      // and will reissue them against request_vendors.job_status. Call sites
+      // are stubbed with Alert.alert until reissue lands — see JobChatScreen.
       accept_job: {
         Args: { p_job_id: string }
-        Returns: Database['public']['Tables']['jobs']['Row'][]
+        Returns: Database['public']['Tables']['vendor_requests']['Row'][]
       }
       reject_job: {
         Args: { p_job_id: string; p_reason?: string | null }
-        Returns: Database['public']['Tables']['jobs']['Row'][]
+        Returns: Database['public']['Tables']['vendor_requests']['Row'][]
       }
       start_travel: {
         Args: { p_job_id: string }
-        Returns: Database['public']['Tables']['jobs']['Row'][]
+        Returns: Database['public']['Tables']['vendor_requests']['Row'][]
       }
       mark_on_site: {
         Args: { p_job_id: string }
-        Returns: Database['public']['Tables']['jobs']['Row'][]
+        Returns: Database['public']['Tables']['vendor_requests']['Row'][]
       }
       complete_job: {
         Args: { p_job_id: string; p_photo_ids: string[] }
-        Returns: Database['public']['Tables']['jobs']['Row'][]
+        Returns: Database['public']['Tables']['vendor_requests']['Row'][]
       }
       send_invoice: {
         Args: { p_job_id: string; p_items: Json; p_notes?: string | null }
