@@ -1,6 +1,6 @@
 # Progress — VXO Vendor App
 
-Working document tracking Phase 1 → Phase 4 deliverables. Last updated: 2026-05-19.
+Working document tracking Phase 1 → Phase 5 deliverables. Last updated: 2026-05-26.
 
 ## Phase 1 — Auth, Onboarding, Profile (Week 1)
 
@@ -121,6 +121,92 @@ Working document tracking Phase 1 → Phase 4 deliverables. Last updated: 2026-0
 - Account deletion flow (blocked on soft vs hard delete decision)
 - Privacy policy + EULA URL links (pending policy URLs)
 - E2E testing (blocked on FCM key + iOS Distribution Cert)
+
+## Phase 5 — Schema merge with Ryan's prod (Week 5, 5A complete)
+
+### Phase 5A — Code-side rename + reads (shipped 2026-05-26)
+
+Goal: align the vendor app code with Ryan's prod schema baseline so that
+reads + non-RPC writes work end-to-end against `baspxigjzkrotqxmpygf`.
+Seven sequential commits on `merging-DB-schema`:
+
+- **Batch A — Types + push tokens** (`dfb6c29`): manually realigned
+  [src/types/database.ts](src/types/database.ts) to Ryan's schema.
+  Renames `vendors` → `vendor_profiles`, `jobs` → `vendor_requests`;
+  adds `request_vendors` (M2M), `device_tokens`, `profiles`. Removes
+  `expo_push_token` from vendors. [useNotificationToken](src/hooks/useNotificationToken.ts)
+  now upserts into `device_tokens` keyed by `(user_id, platform)`;
+  [auth.signOut](src/lib/auth.ts) deletes the matching row instead of
+  clearing a column.
+- **Batch B — Vendor reads** (`e5c4919`): swapped
+  [vendorCache](src/lib/vendorCache.ts), [useVendor](src/hooks/useVendor.ts),
+  [useVendorRealtime](src/hooks/useVendorRealtime.ts) to `vendor_profiles`.
+- **Batch C — Vendor writes** (`58188d2`):
+  [ProfileScreen](src/features/profile/ProfileScreen.tsx) +
+  [FillProfile](src/components/FillProfile.tsx) split `address` →
+  `state`/`city`/`zipcode` (3 form fields), rename `business` →
+  `business_name`, `bio` → `about`, `trades` → `service_categories`.
+  [useToggleOOO](src/features/chats/useToggleOOO.ts),
+  [useNotificationPrefs](src/features/settings/useNotificationPrefs.ts)
+  point at `vendor_profiles`.
+  [useVendorJobsCompleted](src/features/profile/useVendorJobsCompleted.ts)
+  counts `request_vendors` where `job_status='completed'`.
+- **Batch D — Job reads + M2M** (`4849401`): synthetic `Job` type
+  ([types.ts](src/features/chat/types.ts)) wraps `vendor_requests` +
+  per-vendor `job_status` (from `request_vendors`) + embedded `client`
+  profile (joined via `client_id`). All consumers read
+  `job.location` / `job.service_type` / `job.priority` /
+  `job.job_status` / `job.client.first_name`. Status enum collapsed to
+  pending|in_progress|on_the_way|arrived|working|completed|cancelled
+  (per the Phase 5 spec). Priority remap standard|priority|emergency →
+  Low|Medium|High. [useSearchResults](src/features/search/useSearchResults.ts)
+  uses Option B (server pre-filter on location/service_type/description
+  with `.limit(50)`, client-name match through the embedded join).
+  Earnings hooks join `vendor_requests!inner(service_type, client:profiles!client_id(...))`.
+  Mocks reshaped to match the synthetic Job. **Dropped:**
+  `location_lat`/`lng` (arrival detection disabled until Ryan re-exposes
+  coords), `dispatch_fee`, `pm_id`, `updated_at`.
+- **Batch E — Realtime channels** (`b2c2ce4`): channel filters point at
+  `job_messages.request_id` and `request_vendors.vendor_id`.
+- **Batch F — Transition RPC stubs** (`1edee5d`): the five job-transition
+  RPCs (`accept_job`/`reject_job`/`start_travel`/`mark_on_site`/
+  `complete_job`) target the legacy `jobs.status` enum. Ryan acknowledged
+  2026-05-21 (WhatsApp) and will reissue against
+  `request_vendors.job_status` semantics. Until then, every call site is
+  stubbed with `Alert.alert` "Coming soon" in
+  [JobChatScreen.tsx](src/features/chat/JobChatScreen.tsx). USE_MOCKS
+  branch unchanged.
+- **Batch G — Cleanup** (this commit): pushPayload.urgencySchema widened
+  to accept both legacy (standard/priority/emergency) and new
+  (Low/Medium/High) values during Alfred's rollout window.
+  [PHASE_5_TEST_PLAN.md](PHASE_5_TEST_PLAN.md) added.
+
+`npx tsc --noEmit` is clean on the entire repo after Batch G.
+
+### Phase 5B — Pending (Ryan)
+
+- **Transition RPCs** — `accept_job`/`reject_job`/`start_travel`/
+  `mark_on_site`/`complete_job` reissue against
+  `request_vendors.job_status`. Vendor app surfaces "Coming soon"
+  Alerts until these land.
+- **Coordinates on vendor_requests** — `location_lat`/`location_lng`
+  dropped in the rename. Restore so the auto-arrival GPS check, Maps
+  daddr= deep-link, and "5.7 mi away" subtitle in JobRow can come back.
+- **search_jobs RPC** — server-side ilike across the joined client name
+  so the Option B post-filter cap can be lifted (Phase 5C).
+- **dispatch_fee replacement** — `info_card_wo.dispatchFee` currently
+  renders null. If Ryan keeps dispatch fees as a separate concept,
+  surface the new column / table.
+- **pm_id replacement** — PM contact card falls back to mock data when
+  the real-mode lookup can't resolve. Pending Ryan's `project_managers`
+  table or equivalent.
+
+### Phase 5C — Future polish
+
+- Replace post-filter in `useSearchResults` with the `search_jobs` RPC.
+- Re-enable `useArrivalDetection` once coords are back on the row.
+- Drop the legacy values from `pushPayloadSchema.urgencySchema` once
+  Alfred is fully cut over.
 
 ## Known issues / minor
 

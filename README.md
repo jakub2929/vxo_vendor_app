@@ -150,6 +150,21 @@ Canonical design source: [VXO Vendor App V.1 Final (Figma)](https://www.figma.co
 
 Figma pull scripts (icons / screens / tokens / manifest / emoji / inventory) are in [`scripts/`](scripts/) and exposed via `npm run figma:*`.
 
+## Phase 5 status
+
+Phase 5A (code-side schema rename) shipped on `merging-DB-schema`
+2026-05-26 — seven sequential commits aligning the vendor app to Ryan's
+prod schema (`baspxigjzkrotqxmpygf`). See
+[PROGRESS.md](PROGRESS.md#phase-5--schema-merge-with-ryans-prod-week-5-5a-complete)
+for the batch-by-batch breakdown, and [PHASE_5_TEST_PLAN.md](PHASE_5_TEST_PLAN.md)
+for the hardware test plan.
+
+Phase 5B is pending Ryan's reissue of the five job-transition RPCs
+(`accept_job`/`reject_job`/`start_travel`/`mark_on_site`/
+`complete_job`) against `request_vendors.job_status`. Until those land,
+the action card surfaces "Coming soon" Alerts in real mode; USE_MOCKS
+remains fully wired for demos.
+
 ## Phase 4 status
 
 In progress. Recently shipped:
