@@ -1,16 +1,19 @@
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
 import { supabase } from '@/lib/supabase';
-import { setCachedVendor } from '@/lib/vendorCache';
-import type { Database } from '@/types/database';
+import { setCachedVendor, type Vendor } from '@/lib/vendorCache';
 
-type Vendor = Database['public']['Tables']['vendor_profiles']['Row'];
 type ToggleStatus = 'active' | 'out_of_office';
 
-// Flip vendor_profiles.status between 'active' and 'out_of_office'.
-// Optimistic local cache update on success; useVendorRealtime echoes the
-// UPDATE to other devices once the vendor_profiles table is in the
-// supabase_realtime publication.
+// Flip vendor_profiles.availability_status between 'active' and
+// 'out_of_office'. Optimistic local cache update on success;
+// useVendorRealtime echoes the UPDATE to other devices once the
+// vendor_profiles table is in the supabase_realtime publication.
+//
+// Phase 5 hotfix: writes to availability_status (the Phase 2 OOO toggle
+// column added by supabase/refract/add-vendor-profiles-availability-status.sql).
+// Approval lifecycle lives on profiles.status and is read-only from the
+// vendor app.
 //
 // RLS caveat: vendor_own (003_rls_policies.sql) is FOR ALL with no WITH CHECK
 // and no column restriction, so this UPDATE could in principle touch any
@@ -22,20 +25,20 @@ export function useToggleOOO(vendor: Vendor | null) {
   const toggle = useCallback(
     async (target: ToggleStatus) => {
       if (!vendor || pending) return;
-      if (vendor.status === target) return;
+      if (vendor.availability_status === target) return;
 
       setPending(true);
       try {
         const { error } = await supabase
           .from('vendor_profiles')
-          .update({ status: target })
+          .update({ availability_status: target })
           .eq('id', vendor.id);
         if (error) {
           console.warn('[useToggleOOO] update failed', error.message);
           Alert.alert("Couldn't update status", error.message);
           return;
         }
-        setCachedVendor({ ...vendor, status: target });
+        setCachedVendor({ ...vendor, availability_status: target });
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Unknown error';
         console.warn('[useToggleOOO] threw', msg);

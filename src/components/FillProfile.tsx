@@ -300,17 +300,17 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
     try {
       const { data: userRes } = await supabase.auth.getUser();
       const userEmail = userRes.user?.email ?? values.email;
+      const userId = userRes.user?.id;
 
       // Step 1: upsert the vendor_profiles row. We need vendor.id back to
       // namespace Storage paths and satisfy bucket RLS (which subselects
       // vendor_profiles by auth.jwt() email — the row must exist before
       // uploads).
       //
-      // Pre-check existence so we only send status='pending' on a true insert.
-      // The vendor_status_change_guard trigger (supabase/schema/harden-vendors-rls.sql)
-      // rejects any status transition outside the active <-> out_of_office pair,
-      // so re-running this flow for an already-active vendor would fail if we
-      // always sent status='pending'.
+      // Phase 5 hotfix: vendor_profiles no longer carries a `status` column;
+      // approval lifecycle moved to profiles.status (Step 1b below). The
+      // legacy vendor_status_change_guard trigger guarded transitions on the
+      // dropped column and is also gone in Ryan's prod.
       const { data: existing } = await supabase
         .from('vendor_profiles')
         .select('id')
@@ -331,7 +331,6 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
         zipcode: values.zipcode,
         insured: values.insured,
         radius_miles: values.radius_miles,
-        ...(existing ? {} : { status: 'pending' as const }),
       };
 
       const { data: vendorRow, error: upsertError } = await supabase
@@ -342,6 +341,33 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
 
       if (upsertError) throw new Error(upsertError.message);
       if (!vendorRow) throw new Error('Vendor upsert returned no row.');
+
+      // Step 1b: mark the profiles row as awaiting approval. Only runs on
+      // first FillProfile submit (when `existing` was null) — re-running
+      // the form for an already-approved vendor must not knock them back
+      // to 'pending'. The profiles row itself is presumed to exist (it's
+      // created by Ryan's auth trigger on signup); we UPDATE rather than
+      // UPSERT so a missing row surfaces as a 0-row update we can log
+      // rather than masking the trigger failure.
+      if (!existing && userId) {
+        const { data: profileUpdate, error: profileError } = await supabase
+          .from('profiles')
+          .update({ status: 'pending' })
+          .eq('id', userId)
+          .select('id');
+        if (profileError) {
+          console.warn(
+            '[FillProfile] profiles.status=pending update failed',
+            profileError.message,
+          );
+        } else if (!profileUpdate || profileUpdate.length === 0) {
+          console.warn(
+            '[FillProfile] profiles.status=pending matched 0 rows for',
+            userId,
+            "— auth trigger may not have created the profile row yet",
+          );
+        }
+      }
 
       // Step 2: upload files in parallel. Each upload is fault-isolated —
       // a single failure doesn't drop the others or roll back the row.
@@ -408,12 +434,18 @@ export function FillProfile({ initialEmail, initiallySubmitted = false, onBack }
         );
 
       // Seed the cache with the row we just upserted so AuthGate sees
-      // status='pending' immediately on the (tabs) replace below — otherwise
-      // it would re-fetch and, on a slow network, briefly observe a stale
-      // null and bounce the vendor back to fill-profile. Then kick off a
-      // background re-fetch so any patches landed in Step 3 (avatar_path /
-      // coi_path / w9_path) make it into the cache too.
-      setCachedVendor(vendorRow);
+      // approval_status='pending' immediately on the (tabs) replace below —
+      // otherwise it would re-fetch and, on a slow network, briefly observe
+      // a stale null and bounce the vendor back to fill-profile.
+      //
+      // Phase 5 hotfix: the cache shape includes approval_status (joined
+      // from profiles.status). On a true insert we just wrote 'pending'
+      // there in Step 1b; on a re-submit we preserve the prior approval
+      // value. The follow-up refreshVendorCache() reconciles either way.
+      setCachedVendor({
+        ...vendorRow,
+        approval_status: existing ? null : 'pending',
+      });
       void refreshVendorCache();
       setSubmitted(true);
 

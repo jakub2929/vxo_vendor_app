@@ -400,7 +400,14 @@ export function ProfileScreen() {
       // Optimistic local cache update with the row we just got back — avoids
       // the full `clearVendorCache + refresh` round-trip that caused the
       // visible "refresh flicker" between save and confirmation.
-      setCachedVendor(data);
+      //
+      // Phase 5 hotfix: the cache type carries approval_status (denormalized
+      // from profiles.status). The Profile screen never edits approval, so
+      // preserve whatever the cache currently holds.
+      setCachedVendor({
+        ...data,
+        approval_status: vendor.approval_status,
+      });
 
       // Mark the current form values as the new clean baseline so isDirty
       // flips back to false and the Save button greys out. Using the user-

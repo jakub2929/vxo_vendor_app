@@ -68,13 +68,15 @@ export function ChatsScreen() {
         />
         {activeTab === 'jobs' ? (
           <>
-            {vendor?.status === 'pending' && <PendingStatusBanner />}
-            {vendor?.status === 'out_of_office' && <OOOBanner vendor={vendor} />}
+            {vendor?.approval_status === 'pending' && <PendingStatusBanner />}
+            {vendor?.availability_status === 'out_of_office' && (
+              <OOOBanner vendor={vendor} />
+            )}
             <JobsListBody
               vendorId={vendor?.id}
               emptyState={
                 <JobsWelcome
-                  pending={vendor?.status === 'pending'}
+                  pending={vendor?.approval_status === 'pending'}
                   vendorId={vendor?.id}
                 />
               }

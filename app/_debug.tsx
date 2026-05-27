@@ -118,7 +118,7 @@ export default function DebugSmokeTestScreen() {
     const runTestsSequentially = async () => {
       updateResult(0, { status: 'pending', summary: 'Running...', raw: '' });
       try {
-        const { data, error } = await supabase.from('vendor_profiles').select('id, email, status');
+        const { data, error } = await supabase.from('vendor_profiles').select('id, email, availability_status');
         const pass = error === null && Array.isArray(data) && data.length === 0;
         updateResult(0, {
           status: pass ? 'pass' : 'fail',
@@ -375,7 +375,9 @@ export default function DebugSmokeTestScreen() {
                 name: 'TEST DEBUG ' + Date.now(),
                 business_name: 'Test Inc',
                 service_categories: ['hvac'],
-                status: 'pending',
+                // Phase 5 hotfix: vendor_profiles no longer has `status`;
+                // availability_status defaults to 'active' via the schema's
+                // CHECK constraint, so leaving it unset is fine here.
               })
               .select()
               .single();

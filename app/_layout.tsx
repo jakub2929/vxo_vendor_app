@@ -106,14 +106,26 @@ function AuthGate() {
     void (async () => {
       const vendor = await getVendor();
       if (cancelled) return;
-      const status = vendor?.status ?? null;
 
-      if (!status) {
+      // Phase 5 hotfix: the legacy single `vendors.status` column overloaded
+      // approval (pending|approved|suspended) with availability (active|
+      // out_of_office). Both now live separately — approval on
+      // profiles.status (surfaced as vendor.approval_status), availability on
+      // vendor_profiles.availability_status. AuthGate cares only about the
+      // approval lifecycle here.
+      //
+      // "No vendor row" means FillProfile hasn't run yet — route there.
+      // Otherwise: pending OR approved both proceed past FillProfile into the
+      // PIN / biometric gates. We also accept null approval_status for the
+      // window where the auth trigger hasn't created the profile row yet —
+      // better to land in (tabs) and show stale data briefly than bounce.
+      if (!vendor) {
         if (!onFillProfile) router.replace('/(public)/fill-profile');
         return;
       }
+      const approval = vendor.approval_status;
 
-      if (status === 'active' || status === 'out_of_office' || status === 'pending') {
+      if (approval === null || approval === 'pending' || approval === 'approved') {
         const [pinConfigured, setupCompleted] = await Promise.all([
           isPinConfigured(),
           isSetupCompleted(),
@@ -160,10 +172,11 @@ function AuthGate() {
         return;
       }
 
-      // Any other status (e.g. 'suspended', 'rejected'). Falls through to the
-      // FillProfile inline submitted state for now; needs distinct messaging
-      // in a follow-up. Pending used to land here too — it now lands on
-      // (tabs) with PendingStatusBanner per stakeholder feedback.
+      // Any other approval_status (e.g. 'suspended', 'rejected'). Falls
+      // through to the FillProfile inline submitted state for now; needs
+      // distinct messaging in a follow-up. Pending used to land here too —
+      // it now lands on (tabs) with PendingStatusBanner per stakeholder
+      // feedback.
       if (!onFillProfile) router.replace('/(public)/fill-profile?submitted=1');
     })();
 

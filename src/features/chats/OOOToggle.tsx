@@ -1,9 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/theme';
-import type { Database } from '@/types/database';
+import type { Vendor } from '@/lib/vendorCache';
 import { useToggleOOO } from './useToggleOOO';
-
-type Vendor = Database['public']['Tables']['vendor_profiles']['Row'];
 
 type Props = {
   vendor: Vendor;
@@ -18,8 +16,8 @@ type Props = {
 // Renders null for non-toggleable statuses (pending/suspended/rejected/null) —
 // a pending vendor can't pre-set themselves OOO before approval.
 export function OOOToggle({ vendor }: Props) {
-  const isOOO = vendor.status === 'out_of_office';
-  const isActive = vendor.status === 'active';
+  const isOOO = vendor.availability_status === 'out_of_office';
+  const isActive = vendor.availability_status === 'active';
   const { pending, requestOOO, resume } = useToggleOOO(vendor);
 
   if (!isOOO && !isActive) return null;

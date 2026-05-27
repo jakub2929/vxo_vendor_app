@@ -28,8 +28,15 @@ export type Database = {
         // service_area is a legacy compatibility column on Ryan's schema, kept
         // optional until business_name is fully rolled out. address as a
         // single text field is gone — use state/city/zipcode instead.
+        //
+        // Phase 5 hotfix (2026-05-26): vendor_profiles has NO `status` column
+        // in Ryan's prod — the legacy vendors.status overloaded approval
+        // (profiles.status) and availability (this table). availability_status
+        // is added by supabase/refract/add-vendor-profiles-availability-status.sql
+        // and owns the OOO toggle; approval lifecycle lives on profiles.status.
         Row: {
           about: string | null
+          availability_status: string
           avatar_path: string | null
           business_name: string | null
           city: string | null
@@ -47,7 +54,6 @@ export type Database = {
           service_area: string | null
           service_categories: string[] | null
           state: string | null
-          status: string | null
           stripe_account_id: string | null
           updated_at: string | null
           user_id: string | null
@@ -56,6 +62,7 @@ export type Database = {
         }
         Insert: {
           about?: string | null
+          availability_status?: string
           avatar_path?: string | null
           business_name?: string | null
           city?: string | null
@@ -73,7 +80,6 @@ export type Database = {
           service_area?: string | null
           service_categories?: string[] | null
           state?: string | null
-          status?: string | null
           stripe_account_id?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -82,6 +88,7 @@ export type Database = {
         }
         Update: {
           about?: string | null
+          availability_status?: string
           avatar_path?: string | null
           business_name?: string | null
           city?: string | null
@@ -99,7 +106,6 @@ export type Database = {
           service_area?: string | null
           service_categories?: string[] | null
           state?: string | null
-          status?: string | null
           stripe_account_id?: string | null
           updated_at?: string | null
           user_id?: string | null
@@ -226,8 +232,15 @@ export type Database = {
         ]
       }
       profiles: {
-        // Client (homeowner / PM) auth profile. Vendor-side reads only — we
-        // never write to this table from the vendor app.
+        // Auth profile (shared between vendors and clients). Vendors join via
+        // profiles.id = auth.users.id = vendor_profiles.user_id.
+        //
+        // Phase 5 hotfix: `status` here is the approval lifecycle (pending,
+        // approved, suspended, rejected) — distinct from
+        // vendor_profiles.availability_status (active / out_of_office). The
+        // vendor app writes `status='pending'` on first FillProfile submit
+        // and reads it back through the joined embed in vendorCache.
+        // `role` distinguishes vendor / client / admin profiles.
         Row: {
           created_at: string | null
           email: string | null
@@ -235,6 +248,8 @@ export type Database = {
           id: string
           last_name: string | null
           phone: string | null
+          role: string | null
+          status: string | null
         }
         Insert: {
           created_at?: string | null
@@ -243,6 +258,8 @@ export type Database = {
           id: string
           last_name?: string | null
           phone?: string | null
+          role?: string | null
+          status?: string | null
         }
         Update: {
           created_at?: string | null
@@ -251,6 +268,8 @@ export type Database = {
           id?: string
           last_name?: string | null
           phone?: string | null
+          role?: string | null
+          status?: string | null
         }
         Relationships: []
       }

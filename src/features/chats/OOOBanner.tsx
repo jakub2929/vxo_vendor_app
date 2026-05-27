@@ -1,10 +1,8 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { colors } from '@/theme';
-import type { Database } from '@/types/database';
+import type { Vendor } from '@/lib/vendorCache';
 import { useToggleOOO } from './useToggleOOO';
-
-type Vendor = Database['public']['Tables']['vendor_profiles']['Row'];
 
 type Props = {
   vendor: Vendor;
@@ -24,7 +22,7 @@ const GRADIENT_COLORS = ['#E8E9FF', '#DCDFFF'] as const;
 export function OOOBanner({ vendor }: Props) {
   const { pending, resume } = useToggleOOO(vendor);
 
-  if (vendor.status !== 'out_of_office') return null;
+  if (vendor.availability_status !== 'out_of_office') return null;
 
   return (
     <Pressable
