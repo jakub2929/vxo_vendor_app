@@ -13,9 +13,15 @@
 --
 -- Apply procedure (Ryan):
 --   1. Run this file end-to-end on baspxigjzkrotqxmpygf.
---   2. Run the verification block at the bottom — every SELECT should
---      return at least one row for the object it checks.
---   3. Confirm to the app team; we then swap .env and run hardware smoke
+--   2. Watch the NOTICE output — if the vendor_profiles email unique
+--      constraint was SKIPPED due to duplicate emails, resolve the
+--      duplicates and re-run this file. The skip is non-fatal: the rest
+--      of the file applies regardless. NOTICE output includes the diagnostic
+--      query for locating the duplicates.
+--   3. Run the verification block at the bottom — every SELECT should
+--      return at least one row for the object it checks. (Check #2 may
+--      return 0 rows if the email constraint was intentionally skipped.)
+--   4. Confirm to the app team; we then swap .env and run hardware smoke
 --      for profile / jobs / chat / push notifications.
 --      (Earnings + support + accept flows are deferred — see NEEDS_RYAN file.)
 --
@@ -63,27 +69,45 @@ ALTER TABLE vendor_profiles ADD COLUMN IF NOT EXISTS w9_path     text;
 ALTER TABLE vendor_profiles
   ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
 
--- UNIQUE(email) — FillProfile.tsx:338 uses
---   .upsert(payload, { onConflict: 'email' })
+-- UNIQUE(email) — FillProfile.tsx uses .upsert(payload, { onConflict: 'email' }).
 -- Postgres requires a unique constraint on (email) for ON CONFLICT to resolve.
--- Without this, the upsert errors at runtime ("no unique or exclusion
--- constraint matching the ON CONFLICT specification").
+-- GUARD: skip (with a NOTICE) if duplicate non-null emails exist, so this file
+-- doesn't halt mid-apply. Resolve duplicates, then re-run to add the constraint.
 DO $$
+DECLARE
+  dup_count int;
 BEGIN
-  IF NOT EXISTS (
+  -- Already present? Nothing to do.
+  IF EXISTS (
     SELECT 1
     FROM pg_constraint c
-    JOIN pg_class      t ON c.conrelid = t.oid
+    JOIN pg_class t ON c.conrelid = t.oid
     WHERE t.relname = 'vendor_profiles'
-      AND c.contype  = 'u'
+      AND c.contype = 'u'
       AND (
         SELECT array_agg(a.attname ORDER BY a.attname)
         FROM unnest(c.conkey) k
         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k
       ) = ARRAY['email']::name[]
   ) THEN
+    RAISE NOTICE 'vendor_profiles email unique constraint already exists — skipping.';
+    RETURN;
+  END IF;
+
+  -- Check for duplicate non-null emails that would block the constraint.
+  SELECT count(*) INTO dup_count FROM (
+    SELECT email FROM vendor_profiles
+    WHERE email IS NOT NULL
+    GROUP BY email HAVING count(*) > 1
+  ) d;
+
+  IF dup_count > 0 THEN
+    RAISE NOTICE 'SKIPPING email unique constraint: % duplicate email value(s) found in vendor_profiles. Resolve them (query below) and re-run this file.', dup_count;
+    RAISE NOTICE 'Find duplicates with: SELECT email, count(*) FROM vendor_profiles WHERE email IS NOT NULL GROUP BY email HAVING count(*) > 1;';
+  ELSE
     ALTER TABLE vendor_profiles
       ADD CONSTRAINT vendor_profiles_email_unique UNIQUE (email);
+    RAISE NOTICE 'Added vendor_profiles_email_unique constraint.';
   END IF;
 END $$;
 
@@ -299,7 +323,11 @@ WHERE table_schema='public' AND table_name='vendor_profiles'
   AND column_name IN ('availability_status','avatar_path','coi_path','w9_path','updated_at')
 ORDER BY column_name;
 
--- 2. vendor_profiles unique-email constraint (expect 1+ row including vendor_profiles_email_unique)
+-- 2. vendor_profiles unique-email constraint
+--    Expect 1+ row including vendor_profiles_email_unique.
+--    May legitimately return 0 rows for that name if the §1 guard
+--    SKIPPED the constraint due to duplicate emails — check the NOTICE
+--    output from this file's apply log. Resolve duplicates and re-run.
 SELECT conname FROM pg_constraint c
 JOIN pg_class t ON c.conrelid = t.oid
 WHERE t.relname='vendor_profiles' AND c.contype='u';

@@ -91,9 +91,15 @@ The repo has four SQL folders. They are NOT interchangeable:
 ### Now: `supabase/full-sql/CUTOVER_SAFE.sql`
 
 1. Run end-to-end on `baspxigjzkrotqxmpygf`.
-2. Run the verification block at the bottom of the file — every SELECT
-   should return the expected row count.
-3. Notify the app team. We swap `.env` to Ryan-prod credentials and run the
+2. **Watch the NOTICE output.** The `vendor_profiles` email unique constraint
+   self-skips (with a `RAISE NOTICE`) if duplicate non-null emails already
+   exist in the table — this is non-fatal, the rest of the file applies
+   regardless. If skipped, resolve the duplicates (the NOTICE prints the
+   diagnostic query) and re-run the file to add the constraint.
+3. Run the verification block at the bottom of the file — every SELECT
+   should return the expected row count. (Check #2 may legitimately return
+   0 rows if the email constraint was intentionally skipped per step 2.)
+4. Notify the app team. We swap `.env` to Ryan-prod credentials and run the
    hardware smoke for **profile / jobs / chat / push notifications** only.
 
 ### Later (deferred): `supabase/full-sql/CUTOVER_NEEDS_RYAN_DECISION.sql`
