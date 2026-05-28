@@ -1,0 +1,282 @@
+-- ============================================================================
+-- VXO Vendor App — Phase 5 Cutover (DRAFT — needs Ryan's decisions)
+-- ----------------------------------------------------------------------------
+-- Generated: 2026-05-28
+-- Target:    Ryan's prod Supabase (baspxigjzkrotqxmpygf)
+-- Status:    *** DRAFT — DO NOT APPLY ***
+--
+-- ============================================================================
+-- WHY THIS FILE EXISTS
+-- ----------------------------------------------------------------------------
+-- Curl probes against Ryan's prod on 2026-05-28 surfaced three structural
+-- mismatches between what the vendor app expects and what Ryan's backend
+-- currently is. Each mismatch is an actual design decision (not a missing
+-- ADD COLUMN). The SAFE bundle (`CUTOVER_SAFE.sql`) handles everything that
+-- doesn't depend on these decisions. This file drafts each open question
+-- so Ryan can see exactly what the app needs and react with his preferred
+-- approach.
+--
+-- Every statement in this file is **commented out**. Treat the whole file
+-- as a discussion document, not a runnable migration.
+--
+-- ============================================================================
+-- THE THREE OPEN QUESTIONS
+-- ----------------------------------------------------------------------------
+--   Q1. How should invoices link to vendor_requests? (currently bigint job_id
+--       → legacy `jobs`; nothing links to `vendor_requests` UUID).
+--   Q2. How should invoice line items be modeled? (separate table vs JSONB)
+--   Q3. How should vendor↔support chat be modeled? (new table vs reuse
+--       job_messages with a source flag)
+--
+-- These are listed below as Concerns 1–3. Each has:
+--   - The probe-confirmed prod state
+--   - What the app code currently expects
+--   - Two or more approaches, with the SQL draft for each
+--   - A recommendation
+-- ============================================================================
+
+
+-- ============================================================================
+-- CONCERN 1 — invoices ↔ vendor_requests linkage
+-- ----------------------------------------------------------------------------
+-- PROD STATE (probed 2026-05-28):
+--   `invoices` exists with columns:
+--      id, job_id (BIGINT — Alfred/Telegram era; → legacy `jobs.id` bigint),
+--      vendor_id, total, status, labor, parts, notes, paid_at, created_at
+--   It has NO uuid link to vendor_requests, NO `kind`, no `sent_at` /
+--   `viewed_at` / `overdue_at`, no `valid_until`, no `line_items`, no
+--   `updated_at`, no `description` / `diagnostic_fee`.
+--
+--   Separately, a `quotes` table exists. The vendor app code does NOT
+--   reference `from('quotes')` anywhere — it treats invoices as a unified
+--   table with `kind IN ('invoice','quote')`.
+--
+-- APP CODE EXPECTS (verified by grep):
+--   - useHomeData earnings (3 queries): .from('invoices') filtering by
+--     vendor_id, status, kind, sent_at/paid_at — uses sent_at/paid_at for
+--     month-window calculations.
+--   - usePendingInvoices / usePaidInvoices / usePendingQuotes:
+--       .from('invoices')
+--       .select('*, vendor_requests!inner(service_type,
+--               client:profiles!client_id(first_name, last_name))')
+--       .eq('kind','invoice'|'quote') etc.
+--     PostgREST `!inner` REQUIRES a real foreign key from invoices to
+--     vendor_requests. Without that FK these queries 400.
+--   - useJobChat.useJobInvoices: .from('invoices').select('*, invoice_items(*)')
+--     .eq('job_id', vendorRequestUuid)  — passes a uuid, but prod's job_id
+--     is bigint, so this 400s today regardless of invoice_items.
+--
+-- IMPACT IF NOT RESOLVED:
+--   Entire Earnings tab (4 surfaces) + the invoice/quote cards in the chat
+--   timeline cannot work against Ryan's prod. App must keep USE_MOCKS=true
+--   for these surfaces or hide them.
+--
+-- APPROACH A (recommended) — add a UUID FK column to invoices
+--   Add `vendor_request_id uuid REFERENCES vendor_requests(id)`. Keep the
+--   legacy bigint `job_id` column intact (no destructive change). Update
+--   the app to use `vendor_request_id` instead of `job_id`.
+--   Pros: small, additive, fastest path to a working Earnings tab.
+--   Cons: invoices table now has two job-link columns; semantic split
+--     between legacy and Phase-5 era invoices.
+--
+-- APPROACH B — split tables: `invoices_v2` for vendor_requests-era invoices
+--   Create a new table mirroring invoices but with vendor_request_id as the
+--   primary link. Leave legacy `invoices` untouched for the Telegram-era
+--   data. App points at invoices_v2.
+--   Pros: clean separation, no mixed-era rows.
+--   Cons: two tables to maintain; admin/reporting tooling has to union.
+--
+-- APPROACH C — re-key invoices.job_id to uuid
+--   Drop the bigint, replace with uuid → vendor_requests. Backfill or
+--   abandon legacy rows.
+--   Pros: cleanest end state.
+--   Cons: destructive; legacy data needs a migration plan; out of scope
+--     for cutover.
+--
+-- DRAFT for APPROACH A (commented — Ryan to review):
+--
+-- -- 1a. Add UUID link to vendor_requests.
+-- -- ALTER TABLE invoices
+-- --   ADD COLUMN IF NOT EXISTS vendor_request_id uuid REFERENCES vendor_requests(id);
+-- --
+-- -- -- Index for FK joins (PostgREST embedded selects + earnings queries).
+-- -- CREATE INDEX IF NOT EXISTS idx_invoices_vendor_request_id
+-- --   ON invoices(vendor_request_id);
+-- --
+-- -- 1b. Columns the earnings + chat code reads/filters on. None present today.
+-- -- ALTER TABLE invoices
+-- --   ADD COLUMN IF NOT EXISTS kind         text NOT NULL DEFAULT 'invoice'
+-- --     CHECK (kind IN ('invoice','quote')),
+-- --   ADD COLUMN IF NOT EXISTS sent_at      timestamptz,
+-- --   ADD COLUMN IF NOT EXISTS viewed_at    timestamptz,
+-- --   ADD COLUMN IF NOT EXISTS overdue_at   timestamptz,
+-- --   ADD COLUMN IF NOT EXISTS valid_until  timestamptz,
+-- --   ADD COLUMN IF NOT EXISTS description  text,
+-- --   ADD COLUMN IF NOT EXISTS updated_at   timestamptz NOT NULL DEFAULT now(),
+-- --   ADD COLUMN IF NOT EXISTS diagnostic_fee numeric;
+-- --
+-- -- 1c. If 'quotes' table data should fold into 'invoices' with kind='quote',
+-- --     a separate one-time backfill is needed — out of scope for this file.
+--
+-- QUESTION FOR RYAN:
+--   Which approach (A / B / C)? If A, are the column additions in 1b OK,
+--   or would you prefer different naming? Should the existing `quotes`
+--   table's data fold into `invoices` with kind='quote', stay separate,
+--   or be deprecated?
+
+
+-- ============================================================================
+-- CONCERN 2 — invoice line items modeling
+-- ----------------------------------------------------------------------------
+-- PROD STATE (probed 2026-05-28):
+--   No `invoice_items` table exists. `invoices` has no `line_items` JSONB
+--   column either.
+--
+-- APP CODE EXPECTS:
+--   useJobChat.useJobInvoices does:
+--     supabase.from('invoices').select('*, invoice_items(*)')
+--   `invoice_items(*)` is a PostgREST embedded select that requires a real
+--   FK relationship from invoice_items → invoices. The chat timeline
+--   renders one card per invoice with its line items underneath.
+--
+--   Mocks layer (src/lib/mockChatState.ts) ALSO writes a `line_items` JSONB
+--   in parallel for backward compat. This is mock-only — real DB path
+--   reads invoice_items.
+--
+-- IMPACT IF NOT RESOLVED:
+--   The invoice/quote card in the chat timeline cannot render. Earnings
+--   cards (which don't expand line items today) are unaffected by Concern 2
+--   on their own.
+--
+-- APPROACH A (recommended) — separate invoice_items table
+--   Matches what the app code already expects. PostgREST relationship
+--   discovery picks up the FK automatically. Easy to query, easy to index,
+--   easy to extend with per-item fields later (taxable, sku, qty, etc.).
+--
+-- APPROACH B — JSONB on invoices.line_items
+--   Add `line_items jsonb` to invoices. Cuts a table but pushes shape
+--   enforcement into app code, and the embedded-select pattern in
+--   useJobChat would need to be rewritten (no embed for JSONB).
+--   Pros: one fewer table.
+--   Cons: code rewrite in app; harder to query/filter; loses RLS granularity.
+--
+-- DRAFT for APPROACH A (commented — Ryan to review):
+--
+-- -- CREATE TABLE IF NOT EXISTS invoice_items (
+-- --   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+-- --   invoice_id  uuid NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+-- --   description text NOT NULL,
+-- --   amount      numeric NOT NULL,
+-- --   sort_order  integer NOT NULL DEFAULT 0,
+-- --   created_at  timestamptz NOT NULL DEFAULT now()
+-- -- );
+-- -- CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id
+-- --   ON invoice_items(invoice_id);
+--
+-- DRAFT for APPROACH B (commented — alternative if Ryan prefers JSONB):
+--
+-- -- ALTER TABLE invoices
+-- --   ADD COLUMN IF NOT EXISTS line_items jsonb;
+-- -- -- App-side rewrite required: replace `.select('*, invoice_items(*)')`
+-- -- -- with `.select('*')` and read row.line_items directly. Mock shape is
+-- -- -- already JSONB-friendly so app types would simplify, not complicate.
+--
+-- QUESTION FOR RYAN:
+--   Table (A) or JSONB (B)? If A, is the shape OK or should fields like
+--   tax / sku / quantity be added now?
+
+
+-- ============================================================================
+-- CONCERN 3 — support_messages (vendor ↔ support chat)
+-- ----------------------------------------------------------------------------
+-- PROD STATE (probed 2026-05-28):
+--   No `support_messages` table exists. `job_messages` exists and handles
+--   client↔vendor chat for a vendor_request.
+--
+-- APP CODE EXPECTS (src/features/support/):
+--   - useSupportThread.ts:
+--       SELECT from support_messages WHERE vendor_id=X AND thread_type=Y
+--       INSERT { vendor_id, thread_type, sender:'vendor', message }
+--       Realtime channel: INSERT events filtered vendor_id=eq.X
+--   - useSupportSummary.ts:
+--       SELECT from support_messages WHERE vendor_id=X
+--       (for inbox-style summary across all threads)
+--       Realtime channel: INSERT events filtered vendor_id=eq.X
+--   Constraints implied by code:
+--     thread_type ∈ {'current_job','general'}
+--     sender      ∈ {'vendor','support','system'}
+--     job_id      uuid nullable → vendor_requests(id) (only set for
+--                                  current_job threads)
+--
+-- IMPACT IF NOT RESOLVED:
+--   Entire Support tab + Support summary surface in the Chats tab cannot
+--   work. App must keep USE_MOCKS=true for these or hide the tab.
+--
+-- APPROACH A (recommended) — new support_messages table
+--   Mirrors what the app code expects; no app changes needed. Distinct
+--   from job_messages (which is client↔vendor chat scoped to a request)
+--   so realtime fan-out, RLS, and retention can be tuned independently.
+--
+-- APPROACH B — reuse job_messages with a source/channel flag
+--   Add `source text` (values 'job' | 'support_current_job' | 'support_general')
+--   to job_messages. Allow rows where request_id is null for general
+--   support threads. App rewrite: support hooks query job_messages with
+--   source filters.
+--   Pros: one chat table instead of two.
+--   Cons: muddles two domains (request-scoped chat vs vendor-scoped support);
+--     RLS gets harder (request-based policies don't fit general support);
+--     requires app rewrite of both support hooks + realtime channels.
+--
+-- DRAFT for APPROACH A (commented — Ryan to review):
+--
+-- -- CREATE TABLE IF NOT EXISTS support_messages (
+-- --   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+-- --   vendor_id   uuid NOT NULL REFERENCES vendor_profiles(id) ON DELETE CASCADE,
+-- --   thread_type text NOT NULL CHECK (thread_type IN ('current_job','general')),
+-- --   sender      text NOT NULL CHECK (sender      IN ('vendor','support','system')),
+-- --   message     text NOT NULL,
+-- --   job_id      uuid REFERENCES vendor_requests(id) ON DELETE SET NULL,
+-- --   created_at  timestamptz NOT NULL DEFAULT now()
+-- -- );
+-- -- CREATE INDEX IF NOT EXISTS idx_support_messages_vendor_id
+-- --   ON support_messages(vendor_id);
+-- -- CREATE INDEX IF NOT EXISTS idx_support_messages_thread
+-- --   ON support_messages(vendor_id, thread_type, created_at);
+-- --
+-- -- -- Realtime publication membership (app subscribes to INSERT events).
+-- -- ALTER PUBLICATION supabase_realtime ADD TABLE public.support_messages;
+--
+-- DRAFT for APPROACH B (commented — alternative):
+--
+-- -- ALTER TABLE job_messages
+-- --   ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT 'job'
+-- --     CHECK (source IN ('job','support_current_job','support_general'));
+-- -- -- App rewrite required across:
+-- -- --   src/features/support/useSupportThread.ts
+-- -- --   src/features/support/useSupportSummary.ts
+-- -- --   src/lib/mockSupport.ts
+-- -- --   src/types/database.ts
+-- -- -- Realtime channels need to refilter by source + vendor lookup.
+--
+-- QUESTION FOR RYAN:
+--   New table (A) or reuse job_messages (B)? Either is achievable but the
+--   app-side cost is meaningfully different — A is zero, B is ~half a day
+--   of rewrites.
+
+
+-- ============================================================================
+-- HOW TO DECIDE (suggested flow)
+-- ----------------------------------------------------------------------------
+-- 1. Apply CUTOVER_SAFE.sql first — unblocks the profile/jobs/chat/push
+--    hardware smoke (which doesn't depend on any of the open questions).
+-- 2. Ryan reads this file, picks an approach per concern, and either
+--    (a) edits this file in place (uncomment chosen approach, delete others)
+--    or (b) replies with his preference and we author a follow-up SQL file
+--    matching his decisions.
+-- 3. Whichever approach he picks per concern, we update the app code to
+--    match (most of A in each case is already what the app expects → no
+--    app change). Then hardware-smoke earnings + support + accept.
+--
+-- ============================================================================
+-- END OF CUTOVER_NEEDS_RYAN_DECISION.sql
+-- ============================================================================
